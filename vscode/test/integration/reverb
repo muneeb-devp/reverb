@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the reverb CLI built from this checkout. The integration tests point reverb.path here.
+# REVERB_CONFIGURATION picks the build (Debug unless set; CI builds Release).
+exec dotnet "$(dirname "$0")/../../../src/Reverb.Cli/bin/${REVERB_CONFIGURATION:-Debug}/net10.0/Reverb.Cli.dll" "$@"

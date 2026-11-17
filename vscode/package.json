@@ -1,0 +1,108 @@
+{
+  "name": "reverb-notebooks",
+  "displayName": "Reverb",
+  "description": "Reactive C# notebooks in VS Code.",
+  "version": "0.1.1",
+  "publisher": "REPLACE-WITH-MARKETPLACE-PUBLISHER-ID",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/muneeb-devp/reverb.git", "directory": "vscode" },
+  "icon": "icon.png",
+  "engines": { "vscode": "^1.95.0" },
+  "extensionKind": ["workspace"],
+  "categories": ["Notebooks"],
+  "main": "./out/extension.js",
+  "activationEvents": ["onLanguage:csharp"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Reverb shows notebooks in Restricted Mode but doesn't start a kernel, restore packages or offer completions until you trust the folder."
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "notebooks": [
+      {
+        "type": "reverb",
+        "displayName": "Reverb Notebook",
+        "selector": [{ "filenamePattern": "*.cs" }],
+        "priority": "option"
+      }
+    ],
+    "languages": [
+      {
+        "id": "reverb-csharp",
+        "aliases": ["Reverb C#"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "reverb-csharp",
+        "scopeName": "source.reverb-csharp",
+        "path": "./syntaxes/reverb-csharp.tmLanguage.json",
+        "embeddedLanguages": { "source.cs": "csharp" }
+      }
+    ],
+    "configuration": {
+      "title": "Reverb",
+      "properties": {
+        "reverb.path": {
+          "type": "string",
+          "scope": "machine",
+          "default": "",
+          "description": "Path to the reverb executable. Leave empty to look on PATH and in ~/.dotnet/tools."
+        },
+        "reverb.autoSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Save Reverb notebooks a second after you stop typing, and at once after adding, deleting or moving cells or changing packages or lazy mode. With this off, changes to the file on disk only show up while the notebook has no unsaved changes."
+        }
+      }
+    },
+    "commands": [
+      { "command": "reverb.openAsNotebook", "title": "Open as Reverb Notebook" },
+      { "command": "reverb.newNotebook", "title": "Reverb: New Notebook" },
+      { "command": "reverb.restartKernel", "title": "Reverb: Restart Kernel" },
+      { "command": "reverb.toggleLazy", "title": "Reverb: Toggle Lazy Mode" },
+      { "command": "reverb.addPackage", "title": "Reverb: Add Package" },
+      { "command": "reverb.removePackage", "title": "Reverb: Remove Package" }
+    ],
+    "menus": {
+      "commandPalette": [
+        { "command": "reverb.openAsNotebook", "when": "resourceExtname == .cs && !notebookType" },
+        { "command": "reverb.restartKernel", "when": "notebookType == reverb" },
+        { "command": "reverb.toggleLazy", "when": "notebookType == reverb" },
+        { "command": "reverb.addPackage", "when": "notebookType == reverb" },
+        { "command": "reverb.removePackage", "when": "notebookType == reverb" }
+      ],
+      "explorer/context": [
+        { "command": "reverb.openAsNotebook", "when": "resourceExtname == .cs", "group": "navigation@100" }
+      ],
+      "editor/title": [
+        {
+          "command": "reverb.openAsNotebook",
+          "when": "resourceLangId == csharp && activeEditor == workbench.editors.files.textFileEditor",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "test": "tsc --noEmit && node esbuild.mjs --tests && mocha out/test/unit",
+    "test:integration": "tsc --noEmit && node esbuild.mjs && node esbuild.mjs --tests && node out/test/integration/run.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.10.0",
+    "@types/vscode": "1.95.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^3.2.0",
+    "esbuild": "^0.25.0",
+    "mocha": "^10.8.2",
+    "ovsx": "^0.10.0",
+    "typescript": "^5.7.0"
+  }
+}
