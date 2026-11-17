@@ -111,6 +111,28 @@ public class ImportAndUpgradeTests
         Assert.Equal(text, upgraded.Serialize());
     }
 
+    [Theory]
+    [InlineData("// reverb-notebook v1")]
+    [InlineData("// reverb-notebook v1\n")]
+    public void Upgrade_of_a_file_with_only_the_header(string text)
+    {
+        var (upgraded, changes) = NotebookUpgrader.Upgrade(NotebookDocument.Parse(text), Options());
+        Assert.Contains("Added a setup cell.", changes);
+        // The header line is terminated in the document itself, not only when the writer starts the
+        // setup marker on a new line. Otherwise the preamble an editor keeps differs from the one it
+        // reads back from the saved file.
+        Assert.Equal(new PreambleLine("// reverb-notebook v1", "\n"), upgraded.Preamble.Lines[^1]);
+        var written = upgraded.Serialize();
+        Assert.Equal("#:package Reverb.Runtime@0.1.0\n// reverb-notebook v1\n// %% setup\nusing Reverb;\n", written);
+        var reparsed = NotebookDocument.Parse(written);
+        Assert.Equal([CellKind.Setup], reparsed.Cells.Select(c => c.Kind));
+        Assert.Equal(upgraded.Preamble.Lines, reparsed.Preamble.Lines);
+        Assert.Equal(written, reparsed.Serialize());
+        var (again, none) = NotebookUpgrader.Upgrade(reparsed, Options());
+        Assert.Empty(none);
+        Assert.Equal(written, again.Serialize());
+    }
+
     [Fact]
     public void Starter_template_is_already_upgraded()
     {

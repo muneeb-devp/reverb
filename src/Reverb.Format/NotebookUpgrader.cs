@@ -38,16 +38,16 @@ public static class NotebookUpgrader
             changes.Add("Added the '// reverb-notebook v1' header.");
         }
 
-        // The last preamble line must end with a newline before the first cell marker.
-        if (lines.Count > 0 && lines[^1].Terminator.Length == 0 && doc.Cells.Length > 0)
-            lines[^1] = lines[^1] with { Terminator = nl };
-
         var cells = doc.Cells.ToList();
         if (!cells.Any(c => c.Kind == CellKind.Setup))
         {
             cells.Insert(0, NotebookCell.Setup("using Reverb;"));
             changes.Add("Added a setup cell.");
         }
+
+        // The last preamble line must end with a newline before the first cell marker, including a setup cell added just now.
+        if (lines.Count > 0 && lines[^1].Terminator.Length == 0 && cells.Count > 0)
+            lines[^1] = lines[^1] with { Terminator = nl };
 
         var taken = new HashSet<string>(cells.Select(c => c.Id).OfType<string>(), StringComparer.Ordinal);
         for (var i = 0; i < cells.Count; i++)
