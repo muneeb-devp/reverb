@@ -1,0 +1,113 @@
+name: vscode-release
+
+# Push a tag like vscode-v0.1.0 to publish the VS Code extension to the Visual Studio Marketplace
+# and Open VSX and attach the .vsix to a GitHub release. The tag's version must match
+# vscode/package.json. Running it by hand builds and packages the extension without publishing.
+on:
+  push:
+    tags: ["vscode-v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write  # create the GitHub release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    defaults:
+      run:
+        working-directory: vscode
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            vscode/package-lock.json
+
+      - name: Check the tag matches package.json
+        id: version
+        shell: bash
+        run: |
+          pkg="$(node -p "require('./package.json').version")"
+          echo "version=$pkg" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            tag="${GITHUB_REF_NAME#vscode-v}"
+            if [ "$tag" != "$pkg" ]; then
+              echo "::error::The tag $GITHUB_REF_NAME is for version $tag, but vscode/package.json says $pkg. Change the version in vscode/package.json to $tag, or tag it as vscode-v$pkg."
+              exit 1
+            fi
+          fi
+          echo "Version: $pkg"
+
+      # Only for a release: a run by hand only packages, which works with the placeholder.
+      - name: Check the publisher is set
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          publisher="$(node -p "require('./package.json').publisher")"
+          if [[ "$publisher" == REPLACE-* ]]; then
+            echo "::error::vscode/package.json still has the placeholder publisher '$publisher'. Set it to the Marketplace publisher id before releasing."
+            exit 1
+          fi
+
+      # The extension's integration tests run against the CLI built here. ci.yml runs the whole
+      # suite on all three OSes for the same commit; this is a last check before publishing.
+      - name: Build the CLI
+        working-directory: .
+        run: dotnet build src/Reverb.Cli -c Release
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - run: npm test
+
+      - name: Integration tests
+        env:
+          REVERB_CONFIGURATION: Release
+        run: xvfb-run -a npm run test:integration
+
+      - name: Package
+        run: npm run package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reverb-vsix-${{ steps.version.outputs.version }}
+          path: vscode/reverb-notebooks-${{ steps.version.outputs.version }}.vsix
+
+      - name: Publish to the Visual Studio Marketplace
+        if: github.event_name == 'push'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npx vsce publish -p "$VSCE_PAT" --packagePath "reverb-notebooks-$VERSION.vsix"
+
+      - name: Publish to Open VSX
+        if: github.event_name == 'push'
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: npx ovsx publish "reverb-notebooks-$VERSION.vsix" -p "$OVSX_PAT"
+
+      - name: Create the GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        working-directory: .
+        shell: bash
+        run: |
+          flags=(--generate-notes --title "Reverb for VS Code $VERSION")
+          [[ "$VERSION" == *-* ]] && flags+=(--prerelease)
+          gh release create "$GITHUB_REF_NAME" "vscode/reverb-notebooks-$VERSION.vsix" "${flags[@]}"

@@ -31,6 +31,7 @@ jobs:
           cache-dependency-path: |
             frontend/package-lock.json
             tests/e2e/package-lock.json
+            vscode/package-lock.json
 
       - run: dotnet --info
 
@@ -46,8 +47,38 @@ jobs:
         # runner that turned 30-second waits into timeouts.
         run: dotnet test Reverb.slnx -c Release --no-build -m:1 --logger "console;verbosity=normal"
 
+      # The VS Code extension. Its integration tests start VS Code against the CLI built above.
+      - name: Extension build and unit tests
+        working-directory: vscode
+        # bash stops at the first failing command; PowerShell on Windows would carry on.
+        shell: bash
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          npm test
+
+      - name: Extension integration tests (Linux)
+        if: runner.os == 'Linux'
+        working-directory: vscode
+        env:
+          REVERB_CONFIGURATION: Release
+        run: xvfb-run -a npm run test:integration
+
+      - name: Extension integration tests
+        if: runner.os != 'Linux'
+        working-directory: vscode
+        env:
+          REVERB_CONFIGURATION: Release
+        run: npm run test:integration
+
+      - name: Check the extension packages
+        working-directory: vscode
+        run: npm run package
+
       # The sample notebook must run with plain `dotnet run` on every OS.
       - name: Notebook runs with dotnet run
+        # Runs even when an extension step above failed.
+        if: success() || failure()
         shell: bash
         run: spikes/m0-directives/check.sh
 

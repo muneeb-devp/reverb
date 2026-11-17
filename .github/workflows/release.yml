@@ -5,7 +5,7 @@ name: release
 # without publishing them.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]*"]
   workflow_dispatch:
     inputs:
       version:
