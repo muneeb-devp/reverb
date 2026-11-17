@@ -216,6 +216,14 @@ Some other things worth knowing:
 - The editor watches the file. Change it in VS Code or Vim, or let a coding agent edit it, and the notebook reloads and re-runs what changed.
 - The theme button switches between light, dark and your system setting.
 
+## VS Code
+
+The `vscode` folder has an extension that opens Reverb notebooks as native VS Code notebooks, with VS Code's own cells, run buttons and outputs and Reverb's reactive engine underneath. It needs the Reverb tool installed (the extension offers to install it) and talks to it through `reverb serve --stdio`, so it opens no network port.
+
+To open a notebook, right-click the `.cs` file and choose Open With, then Reverb Notebook, or click "Open as Reverb notebook" at the top of the file. Running a cell reruns the cells that depend on it, and you get outputs, completions, hover and live errors in the cells. Notebooks save themselves about a second after you stop typing (the `reverb.autoSave` setting turns that off), and edits made to the file outside VS Code show up in the notebook. In a folder you haven't trusted, notebooks open but no kernel starts.
+
+Widgets, charts and the dependency view are still browser-only. See [vscode/README.md](vscode/README.md) for the details.
+
 ## Command line
 
 | Command | What it does |
@@ -285,9 +293,11 @@ Verso is an open-source notebook in the Jupyter style, with cells run in the ord
 
 The editor listens on 127.0.0.1 only, and the address it opens contains a random token. Connections without the token are refused, and so are requests from other websites, so a page you visit can't run code through your notebook.
 
+`reverb serve --stdio`, which the VS Code extension uses, talks over stdin and stdout and opens no port. In a VS Code folder you haven't trusted, the extension starts no kernel.
+
 `reverb run --host <address>` serves an app beyond localhost, for example to show it on your network. It prints a warning, because anyone who can reach that address can use the widgets, and the cells run as you.
 
-Reverb sends no telemetry.
+Reverb sends no telemetry. To report a security problem, see [SECURITY.md](SECURITY.md).
 
 ## How it works
 
@@ -331,15 +341,25 @@ npx playwright test
 | `src/Reverb.Analysis` | Roslyn analysis: dependencies, diagnostics, code fixes |
 | `src/Reverb.Kernel` | Compiles and runs cells in the kernel process |
 | `src/Reverb.Runtime` | The small library notebooks reference: `Dump`, `Ui`, `Chart` |
-| `src/Reverb.Server` | The editor's web server |
+| `src/Reverb.Server` | The editor's web server, and `reverb serve --stdio` |
 | `src/Reverb.Cli` | The `reverb` command |
 | `frontend` | The editor (React and CodeMirror) |
+| `vscode` | The VS Code extension |
 
-Releases are published from tags: pushing `v1.2.3` runs [the release workflow](.github/workflows/release.yml), which tests, packs, smoke-tests the installed tool and publishes both packages to NuGet.
+The extension has its own tests:
+
+```sh
+cd vscode
+npm ci
+npm test
+npm run test:integration
+```
+
+Releases are published from tags: pushing `v1.2.3` runs [the release workflow](.github/workflows/release.yml), which tests, packs, smoke-tests the installed tool and publishes both packages to NuGet. Pushing `vscode-v1.2.3` publishes the VS Code extension.
 
 ## Contributing
 
-Issues and pull requests are welcome. If the consistency fuzzer finds a bug, the fix belongs in the engine, never in a looser check.
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to set up, how changes get merged (everything goes through a pull request, `main` is protected) and what a pull request needs. If the consistency fuzzer finds a bug, the fix belongs in the engine, never in a looser check.
 
 ## License
 
