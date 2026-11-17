@@ -78,6 +78,29 @@ public class KernelProcessTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Kernel_exits_when_stdin_closes_during_an_endless_cell()
+    {
+        var text = NotebookText.Build(["var spin = 0;\nwhile (true) { spin++; }", "Console.WriteLine(\"after\");"]);
+        var (client, rec) = await StartAsync(text);
+        await using var _ = client;
+        var open = client.SendAsync(Open(text));
+        await WaitFor(() => rec.StatusOf("c1") == "running");
+        client.CloseInput();
+        await client.WaitForProcessExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal("", rec.Stdout("c2"));
+    }
+
+    [Fact]
+    public async Task Kernel_exits_when_stdin_closes_while_idle()
+    {
+        var text = NotebookText.Build(["var a = 1;"]);
+        var (client, _) = await StartAsync(text);
+        await using var _c = client;
+        client.CloseInput();
+        await client.WaitForProcessExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public async Task Interrupt_stops_a_cooperative_cell()
     {
         var text = NotebookText.Build(["await Task.Delay(-1, Notebook.CancellationToken);", "Console.WriteLine(\"after\");"]);

@@ -71,6 +71,11 @@ public sealed class KernelClient : IAsyncDisposable
 
     public int ProcessId => process.Id;
 
+    /// <summary>Closes the kernel's stdin without killing it, as when the parent process dies.</summary>
+    internal void CloseInput() => process.StandardInput.Close();
+
+    internal Task WaitForProcessExitAsync() => process.WaitForExitAsync();
+
     public string StandardError
     {
         get { lock (stderr) return stderr.ToString(); }

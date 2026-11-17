@@ -22,10 +22,12 @@ public static class KernelServer
         KernelTrace.Mark("session created");
         var queue = Channel.CreateUnbounded<KernelRequest>(new UnboundedChannelOptions { SingleReader = true });
 
+        var abandoned = false;
         var processor = Task.Run(async () =>
         {
             await foreach (var request in queue.Reader.ReadAllAsync())
             {
+                if (Volatile.Read(ref abandoned)) break;
                 var ok = true;
                 string? message = null;
                 try
@@ -56,6 +58,7 @@ public static class KernelServer
         events.Send(new KernelEvent { Type = EventTypes.Ready });
         KernelTrace.Mark("ready sent");
 
+        var shutdownRequested = false;
         while (await input.ReadLineAsync() is { } line)
         {
             if (line.Length == 0) continue;
@@ -94,7 +97,24 @@ public static class KernelServer
                 session.CancelForNewWork();
             }
             await queue.Writer.WriteAsync(request);
-            if (request.Type == RequestTypes.Shutdown) break;
+            if (request.Type == RequestTypes.Shutdown)
+            {
+                shutdownRequested = true;
+                break;
+            }
+        }
+
+        if (!shutdownRequested)
+        {
+            // stdin closed without a shutdown: whoever started us is gone. Stop the running cell, skip
+            // what's queued, and don't wait on a cell that ignores cancellation.
+            Volatile.Write(ref abandoned, true);
+            session.Interrupt();
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2));
+                Environment.Exit(0);
+            });
         }
 
         queue.Writer.TryComplete();
