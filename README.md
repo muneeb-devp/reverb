@@ -227,6 +227,7 @@ Some other things worth knowing:
 | `reverb check <file.cs>` | Print compiler and notebook diagnostics. Exits 1 if there are errors |
 | `reverb export <file.cs> --html [-o out.html] [--no-code]` | Run it and write a single HTML page that works offline |
 | `reverb convert <file.ipynb \| file.dib> [-o out.cs] [--force]` | Convert a Jupyter or Polyglot notebook |
+| `reverb serve --stdio` | Used by the VS Code extension |
 
 `new`, `edit` and `run` also take `--port <n>` and `--no-browser`. `run` takes `--host <address>` to serve beyond localhost.
 

@@ -24,6 +24,33 @@ static class Cli
 
     public static async Task<Result> RunAsync(string exe, string[] args, string workingDirectory, int timeoutSeconds = 300)
     {
+        using var p = Process.Start(StartInfo(exe, args, workingDirectory))!;
+        var stdout = p.StandardOutput.ReadToEndAsync();
+        var stderr = p.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+        try
+        {
+            await p.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            p.Kill(entireProcessTree: true);
+            throw new TimeoutException($"{exe} {string.Join(' ', args)} didn't finish in {timeoutSeconds}s.");
+        }
+        return new Result(p.ExitCode, await stdout, await stderr);
+    }
+
+    /// <summary>Starts the built CLI with stdin, stdout and stderr redirected, for commands that keep running.</summary>
+    public static Process StartReverb(string workingDirectory, params string[] args)
+    {
+        var info = StartInfo(DotnetHost.Find(), [CliAssembly, .. args], workingDirectory);
+        info.RedirectStandardInput = true;
+        info.StandardInputEncoding = new UTF8Encoding(false);
+        return Process.Start(info)!;
+    }
+
+    static ProcessStartInfo StartInfo(string exe, string[] args, string workingDirectory)
+    {
         var info = new ProcessStartInfo(exe)
         {
             RedirectStandardOutput = true,
@@ -42,20 +69,7 @@ static class Cli
         info.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         // Package kernels the CLI builds go under artifacts/, not the user's ~/.reverb.
         info.Environment["REVERB_KERNEL_CACHE"] = Path.Combine(Snapshot.RepoRoot, "artifacts", "kernels");
-        using var p = Process.Start(info)!;
-        var stdout = p.StandardOutput.ReadToEndAsync();
-        var stderr = p.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
-        try
-        {
-            await p.WaitForExitAsync(timeout.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            p.Kill(entireProcessTree: true);
-            throw new TimeoutException($"{exe} {string.Join(' ', args)} didn't finish in {timeoutSeconds}s.");
-        }
-        return new Result(p.ExitCode, await stdout, await stderr);
+        return info;
     }
 
     /// <summary>

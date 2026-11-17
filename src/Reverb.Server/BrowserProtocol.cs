@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Reverb.Format;
 using Reverb.Kernel;
 
 namespace Reverb.Server;
@@ -26,6 +27,10 @@ public static class BrowserMessages
     public const string LangSignatureHelp = "lang.signatureHelp";
     public const string LangCodeFix = "lang.codeFix";
 
+    // A client that owns the file (VS Code) sends the whole cell list, or the file's new text.
+    public const string NotebookSync = "notebook.sync";
+    public const string NotebookReload = "notebook.reload";
+
     // server -> browser
     public const string Snapshot = "notebook.snapshot";
     public const string CellStatus = "cell.status";
@@ -39,6 +44,9 @@ public static class BrowserMessages
     public const string LangCompletionsResult = "lang.completionsResult";
     public const string LangHoverResult = "lang.hoverResult";
     public const string LangSignatureHelpResult = "lang.signatureHelpResult";
+
+    /// <summary>The cell list after normalising a notebook.sync, sent back when it had to change.</summary>
+    public const string NotebookCells = "notebook.cells";
     public const string Error = "error";
 }
 
@@ -74,6 +82,18 @@ public sealed class ClientMessage
     public string? DiagnosticId { get; set; }
     public int? Line { get; set; }
     public int? Column { get; set; }
+
+    /// <summary>For notebook.sync: every cell, in order, as the client has them.</summary>
+    public List<PartCell>? Cells { get; set; }
+
+    /// <summary>For notebook.reload and notebook.open: the notebook's text. For format.parse: the text to parse.</summary>
+    public string? Text { get; set; }
+
+    /// <summary>Over stdio: the full path of the notebook the message is for. Unset for format requests and hello.</summary>
+    public string? Notebook { get; set; }
+
+    /// <summary>For format.serialize: the document to write.</summary>
+    public NotebookPartsData? Parts { get; set; }
 }
 
 /// <summary>A message to the browser. Which fields are set depends on <see cref="Type"/>.</summary>
@@ -94,6 +114,12 @@ public sealed class ServerMessage
     public List<PackageView>? Packages { get; set; }
     public KernelView? Kernel { get; set; }
     public List<DiagnosticData>? NotebookDiagnostics { get; set; }
+
+    /// <summary>The lines before the first cell, exactly as they'll be written: directives, header and all.</summary>
+    public List<PreambleLine>? Preamble { get; set; }
+
+    // notebook.cells
+    public List<PartCell>? PartCells { get; set; }
 
     // cell messages
     public string? CellId { get; set; }
@@ -120,6 +146,14 @@ public sealed class ServerMessage
     public List<SignatureData>? Signatures { get; set; }
     public int? ActiveSignature { get; set; }
     public int? ActiveParameter { get; set; }
+
+    /// <summary>Over stdio: the notebook a message is about, as the client named it in notebook.open.</summary>
+    public string? Notebook { get; set; }
+
+    // stdio: format.parsed, hello.result
+    public NotebookPartsData? Parts { get; set; }
+    public int? ProtocolVersion { get; set; }
+    public string? ReverbVersion { get; set; }
 }
 
 public sealed class CellAttrs
@@ -172,4 +206,6 @@ public sealed class KernelView
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(ClientMessage))]
 [JsonSerializable(typeof(ServerMessage))]
+[JsonSerializable(typeof(PartCell))]
+[JsonSerializable(typeof(PreambleLine))]
 public sealed partial class BrowserJson : JsonSerializerContext;

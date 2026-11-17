@@ -120,15 +120,19 @@ sealed class TestClient : IAsyncDisposable
         public List<DiagnosticData> Diagnostics = [];
     }
 
-    readonly ClientWebSocket socket;
-    readonly Task receiving;
+    readonly ClientWebSocket? socket;
+    readonly Task receiving = Task.CompletedTask;
     readonly Lock gate = new();
     long seq;
 
-    TestClient(ClientWebSocket socket)
+    // Set when the client talks to a host in-process instead of over the WebSocket.
+    NotebookHost? host;
+    ClientSession? session;
+
+    TestClient(ClientWebSocket? socket)
     {
         this.socket = socket;
-        receiving = Task.Run(ReceiveAsync);
+        if (socket is not null) receiving = Task.Run(ReceiveAsync);
     }
 
     public ConcurrentQueue<ServerMessage> Messages { get; } = new();
@@ -150,13 +154,30 @@ sealed class TestClient : IAsyncDisposable
         return client;
     }
 
+    /// <summary>
+    /// Connects straight to a host, the way the stdio protocol will. Messages still go through
+    /// JSON both ways, so they're checked like the WebSocket's.
+    /// </summary>
+    public static async Task<TestClient> AttachAsync(NotebookHost host)
+    {
+        var client = new TestClient(null) { host = host };
+        client.session = host.Connect(m =>
+        {
+            var copy = JsonSerializer.Deserialize(JsonSerializer.SerializeToUtf8Bytes(m, BrowserJson.Default.ServerMessage), BrowserJson.Default.ServerMessage)!;
+            lock (client.gate) client.Apply(copy);
+            client.Messages.Enqueue(copy);
+        });
+        await client.WaitFor(() => client.Snapshots > 0);
+        return client;
+    }
+
     async Task ReceiveAsync()
     {
         var buffer = new byte[1 << 16];
         var message = new MemoryStream();
         try
         {
-            while (socket.State == WebSocketState.Open)
+            while (socket!.State == WebSocketState.Open)
             {
                 var r = await socket.ReceiveAsync(buffer, CancellationToken.None);
                 if (r.MessageType == WebSocketMessageType.Close) return;
@@ -269,7 +290,12 @@ sealed class TestClient : IAsyncDisposable
     {
         m.Seq = Interlocked.Increment(ref seq);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(m, BrowserJson.Default.ClientMessage);
-        await socket.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+        if (host is not null)
+        {
+            host.Receive(session!, JsonSerializer.Deserialize(bytes, BrowserJson.Default.ClientMessage)!);
+            return;
+        }
+        await socket!.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
     }
 
     public Task Update(string cell, string source) => SendAsync(new ClientMessage { Type = BrowserMessages.CellUpdate, CellId = cell, Source = source });
@@ -301,6 +327,11 @@ sealed class TestClient : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (socket is null)
+        {
+            host!.Disconnect(session!);
+            return;
+        }
         try
         {
             if (socket.State == WebSocketState.Open)

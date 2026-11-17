@@ -34,6 +34,18 @@ public sealed record EditorOptions
     /// </summary>
     public bool AppMode { get; init; }
 
+    /// <summary>
+    /// A client (VS Code) owns the file: it saves it and notices changes on disk, and tells the
+    /// host with notebook.sync and notebook.reload. The host never writes or watches the file.
+    /// </summary>
+    public bool ClientOwnsFile { get; init; }
+
+    /// <summary>Run the notebook once the kernel is up. Off for VS Code, which opens files without being asked.</summary>
+    public bool RunOnOpen { get; init; } = true;
+
+    /// <summary>The notebook's text, used instead of reading the file.</summary>
+    public string? InitialText { get; init; }
+
     public TextWriter Log { get; init; } = TextWriter.Null;
 }
 
@@ -76,7 +88,7 @@ public sealed class NotebookHost : IAsyncDisposable
     readonly Dictionary<string, string> kernelSources = new(StringComparer.Ordinal);
     readonly Dictionary<string, CellRuntime> runtime = new(StringComparer.Ordinal);
     readonly Timer saveTimer;
-    readonly FileWatcher watcher;
+    readonly FileWatcher? watcher;
 
     NotebookDocument doc;
     string? diskText;
@@ -115,7 +127,7 @@ public sealed class NotebookHost : IAsyncDisposable
         this.diskText = diskText;
         Path = System.IO.Path.GetFullPath(options.NotebookPath);
         saveTimer = new Timer(_ => Post(() => SaveNow()));
-        watcher = new FileWatcher(Path, () => Post(CheckFileAsync));
+        if (!options.ClientOwnsFile) watcher = new FileWatcher(Path, () => Post(CheckFileAsync));
         loop = Task.Run(RunLoopAsync);
     }
 
@@ -135,12 +147,12 @@ public sealed class NotebookHost : IAsyncDisposable
     public static async Task<NotebookHost> OpenAsync(EditorOptions options)
     {
         var path = System.IO.Path.GetFullPath(options.NotebookPath);
-        var text = NotebookFile.ReadText(path);
+        var text = options.InitialText ?? NotebookFile.ReadText(path);
         var host = new NotebookHost(options, Load(text, options.RuntimeVersion), text);
         Task started = Task.CompletedTask;
         await host.InvokeAsync(() =>
         {
-            started = host.StartKernel(run: true, readyMessage: null);
+            started = host.StartKernel(run: options.RunOnOpen, readyMessage: null);
             return Task.CompletedTask;
         });
         // A plain kernel is up in a moment, so wait for it. Building one for packages can take a
@@ -150,7 +162,7 @@ public sealed class NotebookHost : IAsyncDisposable
     }
 
     /// <summary>Parses a file and brings it up to date in memory. The file itself is only rewritten when it's next saved.</summary>
-    static NotebookDocument Load(string text, string runtimeVersion)
+    internal static NotebookDocument Load(string text, string runtimeVersion)
     {
         // A fixed seed: an unmarked file gets the same cell ids every time it's read.
         var (upgraded, _) = NotebookUpgrader.Upgrade(NotebookDocument.Parse(text), new UpgradeOptions { RuntimeVersion = runtimeVersion, Random = new Random(0) });
@@ -361,6 +373,21 @@ public sealed class NotebookHost : IAsyncDisposable
                 await RestartIfPackagesChangedAsync();
                 break;
 
+            case BrowserMessages.NotebookSync or BrowserMessages.NotebookReload when !options.ClientOwnsFile:
+                client.Send(Error($"'{m.Type}' is only for an editor that saves the notebook file itself, such as VS Code. This notebook is saved by Reverb, so send cell changes instead."));
+                break;
+
+            case BrowserMessages.NotebookSync:
+                if (m.Cells is null) return;
+                SyncCells(client, m.Cells);
+                break;
+
+            case BrowserMessages.NotebookReload:
+                // Compared after loading, so a file that only differs by what loading upgrades isn't a change.
+                if (m.Text is null || Load(m.Text, options.RuntimeVersion).Serialize() == doc.Serialize()) return;
+                await ApplyFileTextAsync(m.Text);
+                break;
+
             default:
                 client.Send(Error($"The page sent a message the server doesn't understand ('{m.Type}'). Reload the page; if it keeps happening, the page and the server are from different versions of Reverb."));
                 break;
@@ -510,6 +537,89 @@ public sealed class NotebookHost : IAsyncDisposable
         doc = without.InsertCell(InsertionIndex(without, m.AfterCellId), cell);
         Structural();
     }
+
+    /// <summary>
+    /// Makes the document match the whole cell list a client sent. Cells are matched by key; each
+    /// difference is applied the way the matching browser message would apply it.
+    /// </summary>
+    void SyncCells(ClientSession client, List<PartCell> incoming)
+    {
+        // JSON can leave out fields the records say are always there.
+        var sent = incoming.Select(c => c.Source is null || c.Attributes is null ? c with { Source = c.Source ?? "", Attributes = c.Attributes ?? [] } : c).ToList();
+        // The seed format.serialize uses: the editor may save the list before this correction
+        // reaches it, and the cell should get the same id both times.
+        var (cells, corrected) = CellListNormalizer.Normalize(sent, new Random(0));
+        if (corrected) client.Send(new ServerMessage { Type = BrowserMessages.NotebookCells, PartCells = [.. cells] });
+
+        var before = NotebookParts.Split(doc);
+        var had = new Dictionary<string, PartCell>(StringComparer.Ordinal);
+        foreach (var c in before.Cells)
+            if (KeyOf(c) is { } key) had.TryAdd(key, c);
+
+        // The host's raw text for a cell it already has is what was read from the file; trust that over the client's copy.
+        var merged = cells.Select(c => c with
+        {
+            Source = NotebookDocument.NormalizeSource(c.Source),
+            Raw = had.TryGetValue(KeyOf(c)!, out var old) ? old.Raw : Complete(c.Raw) ? c.Raw : null,
+        }).ToList();
+        // Normalising made every key distinct.
+        var now = merged.ToDictionary(c => KeyOf(c)!, StringComparer.Ordinal);
+        var kept = now.Keys.Where(had.ContainsKey).ToList();
+        // A cell that changed kind is a different cell to the kernel.
+        var renewed = kept.Where(k => had[k].Kind != now[k].Kind).ToHashSet(StringComparer.Ordinal);
+        var removed = had.Keys.Where(k => !now.ContainsKey(k) || renewed.Contains(k)).ToList();
+        var added = now.Keys.Where(k => !had.ContainsKey(k) || renewed.Contains(k)).ToList();
+        var structural = !merged.Select(KeyOf).SequenceEqual(before.Cells.Select(KeyOf))
+            || renewed.Count > 0
+            || kept.Any(k => !had[k].Attributes.SequenceEqual(now[k].Attributes));
+        var edited = kept.Any(k => had[k].Source != now[k].Source);
+        if (!structural && !edited) return;
+
+        NotebookDocument next;
+        try
+        {
+            next = doc with { Cells = NotebookParts.Join(before with { Cells = merged }).Cells };
+            // The kernel runs the written text, and unchanged raw text is written as it is. So the
+            // client's raw text for a new cell is only kept if it writes back to the same cells.
+            if (merged.Any(c => c.Raw is not null && !had.ContainsKey(KeyOf(c)!)) && !WritesBack(next))
+                next = doc with { Cells = NotebookParts.Join(before with { Cells = [.. merged.Select(c => had.ContainsKey(KeyOf(c)!) ? c : c with { Raw = null })] }).Cells };
+        }
+        catch (ArgumentException e)
+        {
+            client.Send(Error($"The notebook's cells couldn't be updated: {e.Message} Reopen the notebook to get the cells back in step."));
+            return;
+        }
+        doc = next;
+        foreach (var key in removed)
+        {
+            kernelSources.Remove(key);
+            runtime.Remove(key);
+        }
+        foreach (var key in added) Submit(doc.FindCell(key)!);
+        if (structural) Structural();
+        else Changed(saveNow: false);
+    }
+
+    static bool WritesBack(NotebookDocument d)
+    {
+        var again = NotebookDocument.Parse(d.Serialize());
+        return again.Cells.Length == d.Cells.Length && again.Cells.Zip(d.Cells).All(p =>
+            p.First.Kind == p.Second.Kind && p.First.Key == p.Second.Key && p.First.Source == p.Second.Source
+            && p.First.Attributes.SequenceEqual(p.Second.Attributes));
+    }
+
+    /// <summary>Raw text from JSON can have holes the writer can't fill.</summary>
+    internal static bool Complete(RawCellData? r) =>
+        r is { MarkerLine: not null, LeadingPad: not null, Content: not null, TrailingPad: not null, Source: not null, Attributes: not null }
+        && r.Kind is "setup" or "code" or "markdown" or "types"
+        && r.Attributes.All(a => a is { Key: not null });
+
+    static string? KeyOf(PartCell cell) => cell.Kind switch
+    {
+        "setup" => "setup",
+        "types" => "types",
+        _ => cell.Id,
+    };
 
     /// <summary>Where a new or moved cell goes: after the given cell (or first), but never before setup or after types.</summary>
     static int InsertionIndex(NotebookDocument doc, string? afterCellId)
@@ -766,8 +876,9 @@ public sealed class NotebookHost : IAsyncDisposable
     async Task RestartIfPackagesChangedAsync()
     {
         if (KernelBuilder.PackagesOf(doc.Preamble.Directives).SequenceEqual(kernelPackages)) return;
-        // Everything is stale in a new kernel, and the user asked for the change, so run (unless lazy).
-        await RestartKernelAsync("The packages changed, so the kernel was rebuilt.", run: true);
+        // Everything is stale in a new kernel. The browser runs it again (unless lazy), and an editor
+        // that doesn't run on open leaves the cells stale, as it does when it opens a notebook.
+        await RestartKernelAsync("The packages changed, so the kernel was rebuilt.", run: options.RunOnOpen);
     }
 
     void OnKernelExited(int generation, int exitCode)
@@ -896,6 +1007,7 @@ public sealed class NotebookHost : IAsyncDisposable
             .Where(d => d.Kind == "package" && !d.Name.Equals(NotebookUpgrader.RuntimePackage, StringComparison.OrdinalIgnoreCase))
             .Select(d => new PackageView { Name = d.Name, Version = d.Value })],
         NotebookDiagnostics = options.AppMode ? [] : DiagnosticsOf(null),
+        Preamble = options.AppMode ? [] : [.. doc.Preamble.Lines],
         Edges = options.AppMode ? [] : graph,
         Cells = [.. doc.Cells.Where(c => c.Key is not null && (!options.AppMode || c.Kind is CellKind.Code or CellKind.Markdown)).Select(CellViewOf)],
     };
@@ -926,7 +1038,7 @@ public sealed class NotebookHost : IAsyncDisposable
     void SaveNow()
     {
         saveTimer.Change(Timeout.Infinite, Timeout.Infinite);
-        if (options.AppMode) return;
+        if (options.AppMode || options.ClientOwnsFile) return;
         var text = doc.Serialize();
         try
         {
@@ -934,7 +1046,7 @@ public sealed class NotebookHost : IAsyncDisposable
             {
                 NotebookFile.WriteTextAtomic(Path, text);
                 diskText = text;
-                watcher.Saw();
+                watcher?.Saw();
             }
             // Each tab learns which of its edits are now on disk.
             foreach (var c in clients) c.Send(new ServerMessage { Type = BrowserMessages.FileSaved, NotebookVersion = version, Ack = c.LastSeq });
@@ -968,7 +1080,12 @@ public sealed class NotebookHost : IAsyncDisposable
             return;
         }
         if (text == diskText) return;
+        await ApplyFileTextAsync(text);
+    }
 
+    /// <summary>The file has new text, read from disk or sent by the client that owns the file.</summary>
+    async Task ApplyFileTextAsync(string text)
+    {
         diskText = text;
         doc = Load(text, options.RuntimeVersion);
         saveTimer.Change(Timeout.Infinite, Timeout.Infinite);
@@ -1010,7 +1127,7 @@ public sealed class NotebookHost : IAsyncDisposable
         await InvokeAsync(async () =>
         {
             disposed = true;
-            watcher.Dispose();
+            watcher?.Dispose();
             SaveNow();
             kernelGeneration++;
             if (kernel is not null) await kernel.DisposeAsync();

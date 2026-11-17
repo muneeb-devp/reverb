@@ -27,7 +27,7 @@ public static class KernelProcess
     /// every write, and Console.Out is the cells' writer: a cell printing while another thread sends
     /// an event would deadlock. A plain file stream on descriptor 1 takes no such lock.
     /// </summary>
-    static Stream ProtocolOutput() => OperatingSystem.IsWindows()
+    public static Stream ProtocolOutput() => OperatingSystem.IsWindows()
         ? Console.OpenStandardOutput()
         : new FileStream(new SafeFileHandle(1, ownsHandle: false), FileAccess.Write, bufferSize: 0);
 

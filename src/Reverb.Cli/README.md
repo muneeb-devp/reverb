@@ -66,6 +66,7 @@ In the editor, moving the slider re-runs `summary` and nothing else. With `dotne
 | `reverb check <file.cs>` | Print compiler and notebook diagnostics |
 | `reverb export <file.cs> --html` | Write a single HTML page that works offline |
 | `reverb convert <file.ipynb \| file.dib>` | Convert a Jupyter or Polyglot notebook |
+| `reverb serve --stdio` | Used by the VS Code extension |
 
 ## More
 

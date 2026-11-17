@@ -25,6 +25,7 @@ static class Program
                                              of its outputs (-o out.html, --no-code).
           convert <file.ipynb | file.dib>    Convert a Jupyter or Polyglot notebook to a Reverb
                                              notebook (-o out.cs, --force to overwrite).
+          serve --stdio                      Talk to an editor extension over stdin and stdout.
 
         Options:
           --version                          Print the version.
@@ -65,6 +66,8 @@ static class Program
                 return await ExportCommand.RunAsync(args[1..]);
             case "convert":
                 return ConvertCommand.Run(args[1..]);
+            case "serve":
+                return await ServeCommand.RunAsync(args[1..]);
             default:
                 Console.Error.WriteLine($"Unknown command '{args[0]}'.\n");
                 Console.Error.WriteLine(Usage);
