@@ -24,6 +24,7 @@ describe("package.json", () => {
       "reverb.toggleHideCode": "Reverb: Toggle Hide Code",
       "reverb.nameCell": "Reverb: Name Cell…",
       "reverb.showDependencies": "Reverb: Show Dependencies",
+      "reverb.changePackageVersion": "Reverb: Change Package Version",
     });
   });
 
@@ -39,6 +40,20 @@ describe("package.json", () => {
   it("keeps the fix command out of the palette, since it only works from a quick fix", () => {
     const entry = manifest.contributes.menus.commandPalette.find((m: { command: string }) => m.command === "reverb.applyFix");
     assert.deepStrictEqual(entry, { command: "reverb.applyFix", when: "false" });
+  });
+
+  it("contributes the packages view in the Explorer, with its menus and both welcome texts", () => {
+    const c = manifest.contributes;
+    assert.deepStrictEqual(c.views.explorer, [{ id: "reverb.packages", name: "Reverb Packages", when: "reverb.notebookActive" }]);
+    assert.ok(c.menus["view/title"].some((m: { command: string; when: string }) => m.command === "reverb.addPackage" && m.when.includes("view == reverb.packages")));
+    for (const command of ["reverb.changePackageVersion", "reverb.removePackage"]) {
+      const item = c.menus["view/item/context"].find((m: { command: string }) => m.command === command);
+      assert.ok(item?.when.includes("viewItem == reverb.package"), command);
+      assert.ok(item.group.startsWith("inline"), command);
+    }
+    const welcome = c.viewsWelcome.filter((w: { view: string }) => w.view === "reverb.packages").map((w: { contents: string }) => w.contents);
+    assert.ok(welcome.includes("No packages yet.\n[Add Package](command:reverb.addPackage)"));
+    assert.ok(welcome.includes("Trust this folder to add or change packages."));
   });
 
   it("contributes the outputs renderer for widgets, charts and tables", () => {

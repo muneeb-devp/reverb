@@ -73,13 +73,21 @@
       { "command": "reverb.newNotebook", "title": "Reverb: New Notebook" },
       { "command": "reverb.restartKernel", "title": "Reverb: Restart Kernel" },
       { "command": "reverb.toggleLazy", "title": "Reverb: Toggle Lazy Mode" },
-      { "command": "reverb.addPackage", "title": "Reverb: Add Package" },
-      { "command": "reverb.removePackage", "title": "Reverb: Remove Package" },
+      { "command": "reverb.addPackage", "title": "Reverb: Add Package", "icon": "$(add)" },
+      { "command": "reverb.removePackage", "title": "Reverb: Remove Package", "icon": "$(trash)" },
       { "command": "reverb.applyFix", "title": "Reverb: Apply Fix" },
       { "command": "reverb.toggleDisabled", "title": "Reverb: Toggle Disabled" },
       { "command": "reverb.toggleHideCode", "title": "Reverb: Toggle Hide Code" },
       { "command": "reverb.nameCell", "title": "Reverb: Name Cell…" },
-      { "command": "reverb.showDependencies", "title": "Reverb: Show Dependencies" }
+      { "command": "reverb.showDependencies", "title": "Reverb: Show Dependencies" },
+      { "command": "reverb.changePackageVersion", "title": "Reverb: Change Package Version", "icon": "$(edit)" }
+    ],
+    "views": {
+      "explorer": [{ "id": "reverb.packages", "name": "Reverb Packages", "when": "reverb.notebookActive" }]
+    },
+    "viewsWelcome": [
+      { "view": "reverb.packages", "contents": "No packages yet.\n[Add Package](command:reverb.addPackage)", "when": "isWorkspaceTrusted" },
+      { "view": "reverb.packages", "contents": "Trust this folder to add or change packages.", "when": "!isWorkspaceTrusted" }
     ],
     "menus": {
       "commandPalette": [
@@ -92,7 +100,15 @@
         { "command": "reverb.toggleDisabled", "when": "notebookType == reverb" },
         { "command": "reverb.toggleHideCode", "when": "notebookType == reverb" },
         { "command": "reverb.nameCell", "when": "notebookType == reverb" },
-        { "command": "reverb.showDependencies", "when": "notebookType == reverb" }
+        { "command": "reverb.showDependencies", "when": "notebookType == reverb" },
+        { "command": "reverb.changePackageVersion", "when": "notebookType == reverb" }
+      ],
+      "view/title": [
+        { "command": "reverb.addPackage", "when": "view == reverb.packages && isWorkspaceTrusted", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "reverb.changePackageVersion", "when": "view == reverb.packages && viewItem == reverb.package && isWorkspaceTrusted", "group": "inline@1" },
+        { "command": "reverb.removePackage", "when": "view == reverb.packages && viewItem == reverb.package && isWorkspaceTrusted", "group": "inline@2" }
       ],
       "notebook/cell/title": [
         { "command": "reverb.toggleDisabled", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@1" },

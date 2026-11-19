@@ -11,6 +11,7 @@ import { AutoSave } from "./autoSave";
 import { registerLanguageServices, ReverbDiagnostics } from "./language";
 import { handleWidgetMessage, registerWidgets } from "./widgets";
 import { registerCodeFixes } from "./codeFixes";
+import { PackagesView } from "./packagesView";
 
 let output: vscode.OutputChannel;
 let process_: Promise<ReverbProcess | undefined> | undefined;
@@ -42,6 +43,12 @@ export interface ReverbApi {
   cellDependencies(cell: vscode.NotebookCell): { text: string; tooltip: string }[];
   /** Whether the last request for the cell's input was to collapse (true) or expand (false) it, or undefined when there was none. */
   inputCollapseRequested(cell: vscode.NotebookCell): boolean | undefined;
+  /** The packages view: its rows, the rows as the item buttons get them, and whether its context key is set. */
+  readonly packagesView: {
+    items(): { label: string; description: string }[];
+    nodes(): unknown[];
+    notebookActive(): boolean;
+  };
   /** The kernel item for the active notebook, or undefined when it's hidden. */
   kernelStatus(): { text: string; tooltip: string } | undefined;
 }
@@ -62,11 +69,13 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
   const ui: Ui = { ...defaultUi };
   const autoSave = new AutoSave((line) => output.appendLine(line));
   const collapse = new CellCollapse((line) => output.appendLine(line));
+  const packagesView = new PackagesView(controller);
   context.subscriptions.push(
     controller,
     collapse,
     diagnostics,
     status,
+    packagesView,
     autoSave,
     registerWidgets(controller),
     ...registerCommands(controller, getReverb, ui, collapse),
@@ -88,6 +97,11 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
     cellDependencies: (cell) => status.dependencyTexts(cell),
     inputCollapseRequested: (cell) => collapse.requestedFor(cell),
     kernelStatus: () => status.kernelText(),
+    packagesView: {
+      items: () => packagesView.getChildren().map((n) => ({ label: String(n.label), description: String(n.description) })),
+      nodes: () => packagesView.getChildren(),
+      notebookActive: () => packagesView.notebookActive,
+    },
   };
 }
 

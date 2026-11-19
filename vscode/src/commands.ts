@@ -5,6 +5,8 @@ import type { CellCollapse } from "./cellCollapse";
 import type { ReverbController } from "./controller";
 import { dependenciesOf } from "./dependencies";
 import type { ReverbCellMetadata } from "./metadata";
+import { packageNameError, packageVersionError } from "./packages";
+import { PackageNode } from "./packagesView";
 import type { FormatTemplated } from "./protocol";
 import type { ReverbProcess } from "./reverbProcess";
 import type { NotebookSession } from "./session";
@@ -210,7 +212,7 @@ export function registerCommands(
           title: "Add Package",
           prompt: "Package name, as on nuget.org",
           placeHolder: "Humanizer",
-          validateInput: (v) => (v.trim() ? undefined : "Enter a package name."),
+          validateInput: packageNameError,
         })
       )?.trim();
       if (!name) return;
@@ -225,7 +227,7 @@ export function registerCommands(
           prompt: `Version of ${name} ('*' takes the latest)`,
           placeHolder: "2.14.1",
           value: existing?.version,
-          validateInput: (v) => (v.trim() ? undefined : `Enter a version of ${name}, for example 2.14.1, or * for the latest.`),
+          validateInput: (v) => packageVersionError(v, name),
         })
       )?.trim();
       if (!version) return;
@@ -240,11 +242,36 @@ export function registerCommands(
         void controller.showError(`${baseName(s.path)} has no packages to remove.`);
         return;
       }
-      const name = await ui.showQuickPick(
-        s.packages.map((p) => p.name),
-        { title: "Remove Package", placeHolder: "Package to remove" },
-      );
+      const name =
+        arg instanceof PackageNode
+          ? arg.packageName
+          : await ui.showQuickPick(
+              s.packages.map((p) => p.name),
+              { title: "Remove Package", placeHolder: "Package to remove" },
+            );
       if (name) s.setPackages(s.packages.filter((p) => p.name !== name));
+    }),
+
+    reg("reverb.changePackageVersion", async (arg?: unknown) => {
+      const s = await sessionWithPackages(arg);
+      if (!s) return;
+      if (s.packages.length === 0) {
+        void controller.showError(`${baseName(s.path)} has no packages to change.`);
+        return;
+      }
+      const name = arg instanceof PackageNode ? arg.packageName : await ui.showQuickPick(s.packages.map((p) => p.name), { title: "Change Version", placeHolder: "Package to change" });
+      const current = s.packages.find((p) => p.name === name);
+      if (!current) return;
+      const version = (
+        await ui.showInputBox({
+          title: `Change Version: ${current.name}`,
+          prompt: `Version of ${current.name} ('*' takes the latest)`,
+          value: current.version,
+          validateInput: (v) => packageVersionError(v, current.name),
+        })
+      )?.trim();
+      if (!version || version === current.version) return;
+      s.setPackages(s.packages.map((p) => (p === current ? { name: current.name, version } : p)));
     }),
 
     vscode.languages.registerCodeLensProvider(
@@ -281,6 +308,7 @@ function notebookFor(arg: unknown): vscode.NotebookDocument | undefined {
     const key = arg.toString();
     return vscode.workspace.notebookDocuments.find((d) => d.uri.toString() === key && d.notebookType === "reverb");
   }
+  if (arg instanceof PackageNode) return notebookFor(arg.notebook);
   const doc = vscode.window.activeNotebookEditor?.notebook;
   return doc?.notebookType === "reverb" ? doc : undefined;
 }
