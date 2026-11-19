@@ -2,6 +2,7 @@
 import * as vscode from "vscode";
 import { nameOf } from "./cellAttrs";
 import type { ReverbController } from "./controller";
+import { dependenciesOf, dependencyItems } from "./dependencies";
 import { cellStatusText, kernelStatusText } from "./statusBar";
 
 export class ReverbStatusItems implements vscode.Disposable {
@@ -20,6 +21,14 @@ export class ReverbStatusItems implements vscode.Disposable {
           const items: vscode.NotebookCellStatusBarItem[] = [];
           const name = this.nameText(cell);
           if (name) items.push({ text: name, tooltip: "Cell name", alignment: vscode.NotebookCellStatusBarAlignment.Left, priority: 10 });
+          for (const d of this.dependencyTexts(cell)) {
+            items.push({
+              ...d,
+              alignment: vscode.NotebookCellStatusBarAlignment.Left,
+              priority: 5,
+              command: { command: "reverb.showDependencies", title: "Show Dependencies", arguments: [cell] },
+            });
+          }
           const text = this.cellText(cell);
           if (text) items.push({ text, alignment: vscode.NotebookCellStatusBarAlignment.Left });
           return items;
@@ -50,6 +59,15 @@ export class ReverbStatusItems implements vscode.Disposable {
     return nameOf(cell.metadata.reverb?.attrs);
   }
 
+  /** The "uses" and "used by" items under a cell. */
+  dependencyTexts(cell: vscode.NotebookCell): { text: string; tooltip: string }[] {
+    if (cell.kind !== vscode.NotebookCellKind.Code || cell.metadata.reverb?.kind !== "code") return [];
+    const id = cell.metadata.reverb?.id as string | undefined;
+    const session = this.controller.session(cell.notebook.uri);
+    if (!id || !session) return [];
+    return dependencyItems(dependenciesOf(id, session.edges), (other) => cellLabel(cell.notebook, other));
+  }
+
   /** The kernel item as shown, or undefined while no Reverb notebook is active. */
   kernelText(): { text: string; tooltip: string } | undefined {
     const doc = vscode.window.activeNotebookEditor?.notebook;
@@ -77,4 +95,11 @@ export class ReverbStatusItems implements vscode.Disposable {
     this.kernelItem.tooltip = shown.tooltip;
     this.kernelItem.show();
   }
+}
+
+/** A cell's name, else "cell N" for its 1-based position in the notebook. */
+export function cellLabel(notebook: vscode.NotebookDocument, id: string): string {
+  const cell = notebook.getCells().find((c) => c.metadata.reverb?.id === id);
+  if (!cell) return id;
+  return nameOf(cell.metadata.reverb?.attrs) ?? `cell ${cell.index + 1}`;
 }

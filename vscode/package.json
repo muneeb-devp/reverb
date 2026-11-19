@@ -78,7 +78,8 @@
       { "command": "reverb.applyFix", "title": "Reverb: Apply Fix" },
       { "command": "reverb.toggleDisabled", "title": "Reverb: Toggle Disabled" },
       { "command": "reverb.toggleHideCode", "title": "Reverb: Toggle Hide Code" },
-      { "command": "reverb.nameCell", "title": "Reverb: Name Cell…" }
+      { "command": "reverb.nameCell", "title": "Reverb: Name Cell…" },
+      { "command": "reverb.showDependencies", "title": "Reverb: Show Dependencies" }
     ],
     "menus": {
       "commandPalette": [
@@ -90,12 +91,14 @@
         { "command": "reverb.applyFix", "when": "false" },
         { "command": "reverb.toggleDisabled", "when": "notebookType == reverb" },
         { "command": "reverb.toggleHideCode", "when": "notebookType == reverb" },
-        { "command": "reverb.nameCell", "when": "notebookType == reverb" }
+        { "command": "reverb.nameCell", "when": "notebookType == reverb" },
+        { "command": "reverb.showDependencies", "when": "notebookType == reverb" }
       ],
       "notebook/cell/title": [
         { "command": "reverb.toggleDisabled", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@1" },
         { "command": "reverb.toggleHideCode", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@2" },
-        { "command": "reverb.nameCell", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@3" }
+        { "command": "reverb.nameCell", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@3" },
+        { "command": "reverb.showDependencies", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@4" }
       ],
       "explorer/context": [
         { "command": "reverb.openAsNotebook", "when": "resourceExtname == .cs", "group": "navigation@100" }

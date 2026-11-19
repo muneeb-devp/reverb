@@ -38,6 +38,8 @@ export interface ReverbApi {
   cellStatus(cell: vscode.NotebookCell): string | undefined;
   /** The name shown under a cell, or undefined when it has none. */
   cellName(cell: vscode.NotebookCell): string | undefined;
+  /** The dependency items under a cell: text and tooltip. */
+  cellDependencies(cell: vscode.NotebookCell): { text: string; tooltip: string }[];
   /** Whether the last request for the cell's input was to collapse (true) or expand (false) it, or undefined when there was none. */
   inputCollapseRequested(cell: vscode.NotebookCell): boolean | undefined;
   /** The kernel item for the active notebook, or undefined when it's hidden. */
@@ -83,6 +85,7 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
     handleWidgetMessage: (uri, message) => handleWidgetMessage(controller, uri, message),
     cellStatus: (cell) => status.cellText(cell),
     cellName: (cell) => status.nameText(cell),
+    cellDependencies: (cell) => status.dependencyTexts(cell),
     inputCollapseRequested: (cell) => collapse.requestedFor(cell),
     kernelStatus: () => status.kernelText(),
   };

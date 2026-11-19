@@ -3,10 +3,12 @@ import * as vscode from "vscode";
 import { hasFlag, nameOf, withFlag, withName, type CellFlag } from "./cellAttrs";
 import type { CellCollapse } from "./cellCollapse";
 import type { ReverbController } from "./controller";
+import { dependenciesOf } from "./dependencies";
 import type { ReverbCellMetadata } from "./metadata";
 import type { FormatTemplated } from "./protocol";
 import type { ReverbProcess } from "./reverbProcess";
 import type { NotebookSession } from "./session";
+import { cellLabel } from "./statusItems";
 
 /** The prompts the commands use. The integration tests replace them, since they can't click a dialog. */
 export interface Ui {
@@ -14,6 +16,7 @@ export interface Ui {
   showInputBox(options: vscode.InputBoxOptions): Thenable<string | undefined>;
   showQuickPick(items: string[], options: vscode.QuickPickOptions): Thenable<string | undefined>;
   showWarningMessage(message: string, options: vscode.MessageOptions, ...items: string[]): Thenable<string | undefined>;
+  showInformationMessage(message: string): Thenable<string | undefined>;
 }
 
 export const defaultUi: Ui = {
@@ -21,6 +24,7 @@ export const defaultUi: Ui = {
   showInputBox: (o) => vscode.window.showInputBox(o),
   showQuickPick: (items, o) => vscode.window.showQuickPick(items, o),
   showWarningMessage: (message, o, ...items) => vscode.window.showWarningMessage(message, o, ...items),
+  showInformationMessage: (message) => vscode.window.showInformationMessage(message),
 };
 
 const NOTEBOOK_MARKER = /^\/\/ reverb-notebook v1\b/m;
@@ -112,6 +116,39 @@ export function registerCommands(
       const name = answer.trim() || undefined;
       if (name === current) return;
       await setAttrs([cell], (c) => withName(attrsMeta(c).attrs, name));
+    }),
+
+    reg("reverb.showDependencies", async (arg?: unknown) => {
+      const cell = codeCells(arg, "inspected")[0];
+      if (!cell) return;
+      const nb = cell.notebook;
+      const id = attrsMeta(cell).id;
+      const deps = id ? dependenciesOf(id, controller.session(nb.uri)?.edges ?? []) : { uses: [], usedBy: [] };
+      const related = [...new Set([...deps.uses.map((u) => u.cell), ...deps.usedBy])];
+      if (related.length === 0) {
+        const label = id ? cellLabel(nb, id) : "This cell";
+        void ui.showInformationMessage(
+          controller.session(nb.uri)
+            ? `${label} doesn't use or feed any other cell.`
+            : `Trust this folder to see what ${label} uses. Reverb works out dependencies once the notebook has a kernel.`,
+        );
+        return;
+      }
+      const options = new Map<string, vscode.NotebookCell>();
+      for (const other of related) {
+        const target = nb.getCells().find((c) => attrsMeta(c).id === other);
+        if (!target) continue;
+        const used = deps.uses.find((u) => u.cell === other);
+        const how = [used && `uses ${used.names.join(", ")}`, deps.usedBy.includes(other) && "uses this cell"].filter(Boolean).join("; ");
+        options.set(`${cellLabel(nb, other)} (${how})`, target);
+      }
+      const picked = await ui.showQuickPick([...options.keys()], { title: "Show Dependencies", placeHolder: "Go to a related cell" });
+      const target = picked === undefined ? undefined : options.get(picked);
+      if (!target) return;
+      const editor = vscode.window.visibleNotebookEditors.find((e) => e.notebook === nb) ?? (await vscode.window.showNotebookDocument(nb));
+      const range = new vscode.NotebookRange(target.index, target.index + 1);
+      editor.selection = range;
+      editor.revealRange(range, vscode.NotebookEditorRevealType.InCenterIfOutsideViewport);
     }),
 
     reg("reverb.openAsNotebook", async (arg?: unknown) => {

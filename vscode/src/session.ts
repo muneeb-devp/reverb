@@ -5,7 +5,7 @@ import { ExecutionTracker, type ExecAction } from "./executions";
 import { cellsToParts, readNotebookMetadata, type PlainCell, type ReverbCellMetadata } from "./metadata";
 import { correctionOrder, isReload, notebookLost, type ChangeSummary } from "./notebookChanges";
 import { appendStream, errorItem, toOutputItems } from "./outputs";
-import type { CellStatus, Diagnostic, FormatSerialized, KernelState, NotebookPartsData, Output, Package, PartCell, PreambleLine, ServerMessage, WidgetKind } from "./protocol";
+import type { CellStatus, Diagnostic, Edge, FormatSerialized, KernelState, NotebookPartsData, Output, Package, PartCell, PreambleLine, ServerMessage, WidgetKind } from "./protocol";
 import type { ReverbProcess } from "./reverbProcess";
 import { decodeNotebook } from "./serializer";
 
@@ -56,6 +56,8 @@ export class NotebookSession implements vscode.Disposable {
   /** The notebook's packages (Reverb.Runtime excluded) as the last snapshot listed them. Undefined until one arrives. */
   packages: Package[] | undefined;
   lazy: boolean | undefined;
+  /** Which cell uses which, from the last snapshot or graph update. */
+  edges: readonly Edge[] = [];
 
   private proc: ReverbProcess | undefined;
   private loggedNoProcess = false;
@@ -149,6 +151,7 @@ export class NotebookSession implements vscode.Disposable {
     this.kernelState = undefined;
     this.kernelMessage = undefined;
     this.packages = undefined;
+    this.edges = [];
     this.lazy = undefined;
     this.serverPreamble = undefined;
     this.statuses.clear();
@@ -351,6 +354,7 @@ export class NotebookSession implements vscode.Disposable {
         this.setKernel(m.kernel.state, m.kernel.message);
         this.packages = m.packages;
         this.lazy = m.lazy;
+        this.edges = m.edges;
         for (const c of m.cells) {
           this.setStatus(c.id, c.status, c.message);
           this.setOutputs(c.id, c.outputs);
@@ -359,6 +363,10 @@ export class NotebookSession implements vscode.Disposable {
         this.host.setDiagnostics(this, undefined, m.notebookDiagnostics ?? []);
         if (m.preamble) this.serverPreamble = m.preamble;
         this.writePreamble(m.preamble);
+        this.host.stateChanged(this);
+        break;
+      case "graph.update":
+        this.edges = m.edges;
         this.host.stateChanged(this);
         break;
       case "cell.status":
