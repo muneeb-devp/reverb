@@ -5,6 +5,7 @@ import type { ReverbDiagnostics } from "./language";
 import type { Diagnostic } from "./protocol";
 import type { ReverbProcess } from "./reverbProcess";
 import { keyOf, NotebookSession, type SessionHost } from "./session";
+import { resetWidgetLog } from "./widgets";
 
 export const TRUST_MESSAGE = "Trust this folder to run Reverb notebooks.";
 const RESTART_LIMIT = 3;
@@ -56,6 +57,7 @@ export class ReverbController implements vscode.Disposable, SessionHost {
 
   /** Notebooks that were open while the folder was restricted get their sessions now. */
   trustGranted(): void {
+    resetWidgetLog();
     vscode.workspace.notebookDocuments.forEach((doc) => this.open(doc));
   }
 

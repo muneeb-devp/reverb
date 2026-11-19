@@ -5,7 +5,7 @@ import { ExecutionTracker, type ExecAction } from "./executions";
 import { cellsToParts, readNotebookMetadata, type PlainCell, type ReverbCellMetadata } from "./metadata";
 import { correctionOrder, isReload, notebookLost, type ChangeSummary } from "./notebookChanges";
 import { appendStream, errorItem, toOutputItems } from "./outputs";
-import type { CellStatus, Diagnostic, FormatSerialized, KernelState, NotebookPartsData, Output, Package, PartCell, PreambleLine, ServerMessage } from "./protocol";
+import type { CellStatus, Diagnostic, FormatSerialized, KernelState, NotebookPartsData, Output, Package, PartCell, PreambleLine, ServerMessage, WidgetKind } from "./protocol";
 import type { ReverbProcess } from "./reverbProcess";
 import { decodeNotebook } from "./serializer";
 
@@ -51,6 +51,7 @@ export class NotebookSession implements vscode.Disposable {
   lazy: boolean | undefined;
 
   private proc: ReverbProcess | undefined;
+  private loggedNoProcess = false;
   private handler: vscode.Disposable | undefined;
   private opened = false;
   private disposed = false;
@@ -217,6 +218,18 @@ export class NotebookSession implements vscode.Disposable {
 
   interrupt(): void {
     this.proc?.send({ type: "kernel.interrupt", notebook: this.path });
+  }
+
+  setWidget(widgetId: string, value: unknown, kind: WidgetKind): void {
+    if (!this.proc) {
+      if (!this.loggedNoProcess) {
+        this.loggedNoProcess = true;
+        this.host.log(`${this.name} has no running Reverb, so widget changes were dropped. Run a cell to start it again.`);
+      }
+      return;
+    }
+    this.loggedNoProcess = false;
+    this.proc.send({ type: "widget.setValue", notebook: this.path, widgetId, value, kind });
   }
 
   /** The cell's status as the server last reported it. */

@@ -8,6 +8,7 @@ import { defaultUi, registerCommands, type Ui } from "./commands";
 import { ReverbStatusItems } from "./statusItems";
 import { AutoSave } from "./autoSave";
 import { registerLanguageServices, ReverbDiagnostics } from "./language";
+import { handleWidgetMessage, registerWidgets } from "./widgets";
 
 let output: vscode.OutputChannel;
 let process_: Promise<ReverbProcess | undefined> | undefined;
@@ -29,6 +30,8 @@ export interface ReverbApi {
   readonly errors: readonly string[];
   /** The prompts the commands use. Tests replace them. */
   readonly ui: Ui;
+  /** Sends a renderer message to the notebook's kernel as the widget handler does. True when it was sent. */
+  handleWidgetMessage(uri: vscode.Uri, message: unknown): boolean;
   /** The status bar text under a cell, or undefined when it has none. */
   cellStatus(cell: vscode.NotebookCell): string | undefined;
   /** The kernel item for the active notebook, or undefined when it's hidden. */
@@ -56,6 +59,7 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
     status,
     autoSave,
     ...registerCommands(controller, getReverb, ui),
+    registerWidgets(controller),
     ...registerLanguageServices((uri) => controller.session(uri)),
   );
   if (context.extensionMode !== vscode.ExtensionMode.Test) return undefined;
@@ -67,6 +71,7 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
     executeCells: async (notebook, cells) => void (await controller.controller.executeHandler(cells, notebook, controller.controller)),
     errors: controller.errors,
     ui,
+    handleWidgetMessage: (uri, message) => handleWidgetMessage(controller, uri, message),
     cellStatus: (cell) => status.cellText(cell),
     kernelStatus: () => status.kernelText(),
   };
