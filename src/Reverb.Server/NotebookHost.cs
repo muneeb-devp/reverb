@@ -470,13 +470,20 @@ public sealed class NotebookHost : IAsyncDisposable
 
     /// <summary>
     /// Applies Reverb's fix for a diagnostic. The kernel works out the new notebook; it's used only if
-    /// nothing changed meanwhile. The cells the fix touched are run, as if the user had edited and run them.
+    /// nothing changed meanwhile. In the browser the fix is applied here and the cells it touched are run, as
+    /// if the user had edited and run them. When a client owns the file the host doesn't touch the text: the
+    /// fixed cells go back in a lang.codeFixResult and the editor applies them and syncs as usual.
     /// </summary>
     void CodeFix(ClientSession client, ClientMessage m)
     {
+        var owned = options.ClientOwnsFile;
+        // Every outcome for a client-owned notebook is a codeFixResult, so the editor can match it to its request.
+        void Refuse(string message) =>
+            client.Send(owned ? new ServerMessage { Type = BrowserMessages.LangCodeFixResult, RequestId = m.RequestId, Message = message } : Error(message));
+
         if (m.CellId is null || m.DiagnosticId is null || kernel is null || kernelState == "dead")
         {
-            client.Send(Error("The kernel isn't running, so Reverb can't work out the fix. Restart it and try again."));
+            Refuse("The kernel isn't running, so Reverb can't work out the fix. Restart it and try again.");
             return;
         }
         var asked = version;
@@ -485,17 +492,22 @@ public sealed class NotebookHost : IAsyncDisposable
         {
             if (!t.IsCompletedSuccessfully)
             {
-                client.Send(Error("The kernel stopped before it could work out the fix. Try again when it's back."));
+                Refuse("The kernel stopped before it could work out the fix. Try again when it's back.");
                 return;
             }
             if (t.Result.Ok != true || t.Result.Text is not { } fixedText)
             {
-                client.Send(Error(t.Result.Message ?? "Reverb couldn't fix that."));
+                Refuse(t.Result.Message ?? "Reverb couldn't fix that.");
                 return;
             }
             if (version != asked)
             {
-                client.Send(Error("The notebook changed while Reverb was working out the fix. Try the fix again."));
+                Refuse("The notebook changed while Reverb was working out the fix. Try the fix again.");
+                return;
+            }
+            if (owned)
+            {
+                client.Send(new ServerMessage { Type = BrowserMessages.LangCodeFixResult, RequestId = m.RequestId, PartCells = [.. NotebookParts.Split(NotebookDocument.Parse(fixedText)).Cells] });
                 return;
             }
             var before = doc;

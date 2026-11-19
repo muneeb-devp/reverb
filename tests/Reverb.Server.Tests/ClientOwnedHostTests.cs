@@ -1,4 +1,5 @@
 using Reverb.Format;
+using Reverb.Kernel;
 using Reverb.Testing;
 
 namespace Reverb.Server.Tests;
@@ -48,6 +49,81 @@ public class ClientOwnedHostTests
     static IReadOnlyList<string?> Keys(NotebookHost host) => [.. host.Document.Cells.Select(c => c.Key)];
 
     static ServerMessage LastSnapshot(TestClient client) => client.Messages.Last(m => m.Type == BrowserMessages.Snapshot);
+
+    static readonly string MisplacedUsing = NotebookText.Build(["var a = 2;", "using System.Text;\nvar sb = new StringBuilder().Append(a);\nConsole.WriteLine(sb);"]);
+
+    static async Task<DiagnosticData> WaitForUsingDiagnostic(TestClient client)
+    {
+        await client.WaitFor(() => client["c2"].Diagnostics.Any(d => d.Id == "RVB004"), what: "the RVB004 diagnostic");
+        return client["c2"].Diagnostics.First(d => d.Id == "RVB004");
+    }
+
+    static ClientMessage FixFor(DiagnosticData d, int requestId) => new()
+    {
+        Type = BrowserMessages.LangCodeFix, RequestId = requestId, CellId = "c2", DiagnosticId = d.Id, Line = d.StartLine, Column = d.StartColumn,
+    };
+
+    [Fact]
+    public async Task A_client_owned_code_fix_returns_the_fixed_cells()
+    {
+        await using var nb = await OwnedNotebook.OpenAsync(OwnedNotebook.WriteFile(MisplacedUsing), runOnOpen: false);
+        await using var client = await nb.ConnectAsync();
+        var d = await WaitForUsingDiagnostic(client);
+        var before = nb.Host.Document.Serialize();
+        var snapshots = client.Snapshots;
+
+        await client.SendAsync(FixFor(d, 7));
+        await client.WaitFor(() => client.Has(BrowserMessages.LangCodeFixResult), seconds: 60, what: "the code fix result");
+
+        var result = client.Messages.Single(m => m.Type == BrowserMessages.LangCodeFixResult);
+        Assert.Equal(7, result.RequestId);
+        Assert.Null(result.Message);
+        var cells = result.PartCells!;
+        Assert.Contains("using System.Text;", cells.First(c => c.Kind == "setup").Source);
+        Assert.DoesNotContain("using System.Text;", cells.First(c => c.Id == "c2").Source);
+
+        await nb.Host.IdleAsync();
+        Assert.Equal(before, nb.Host.Document.Serialize());
+        Assert.Equal(0, client.Runs("c2"));
+        Assert.Equal(snapshots, client.Snapshots);
+        Assert.False(client.Has(BrowserMessages.Error));
+    }
+
+    [Fact]
+    public async Task A_fix_asked_before_a_sync_is_refused()
+    {
+        await using var nb = await OwnedNotebook.OpenAsync(OwnedNotebook.WriteFile(MisplacedUsing), runOnOpen: false);
+        await using var client = await nb.ConnectAsync();
+        var d = await WaitForUsingDiagnostic(client);
+
+        await client.SendAsync(FixFor(d, 8));
+        var cells = PartsOf(nb.Host);
+        cells[^1] = cells[^1] with { Source = cells[^1].Source + "\n// edited", Raw = null };
+        await client.SendAsync(Sync(cells));
+        await client.WaitFor(() => client.Has(BrowserMessages.LangCodeFixResult), seconds: 60, what: "the code fix result");
+
+        var result = client.Messages.Single(m => m.Type == BrowserMessages.LangCodeFixResult);
+        Assert.Equal(8, result.RequestId);
+        Assert.Null(result.PartCells);
+        Assert.Contains("changed", result.Message);
+    }
+
+    [Fact]
+    public async Task A_fix_for_an_unknown_diagnostic_says_why()
+    {
+        await using var nb = await OwnedNotebook.OpenAsync(OwnedNotebook.WriteFile(MisplacedUsing), runOnOpen: false);
+        await using var client = await nb.ConnectAsync();
+        await WaitForUsingDiagnostic(client);
+
+        await client.SendAsync(new ClientMessage { Type = BrowserMessages.LangCodeFix, RequestId = 9, CellId = "c2", DiagnosticId = "NOPE", Line = 0, Column = 0 });
+        await client.WaitFor(() => client.Has(BrowserMessages.LangCodeFixResult), seconds: 60, what: "the code fix result");
+
+        var result = client.Messages.Single(m => m.Type == BrowserMessages.LangCodeFixResult);
+        Assert.Equal(9, result.RequestId);
+        Assert.False(string.IsNullOrWhiteSpace(result.Message));
+        Assert.Null(result.PartCells);
+        Assert.False(client.Has(BrowserMessages.Error));
+    }
 
     [Fact]
     public async Task A_client_owned_host_never_writes_the_file()

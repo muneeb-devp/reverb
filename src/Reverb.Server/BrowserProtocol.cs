@@ -45,6 +45,9 @@ public static class BrowserMessages
     public const string LangHoverResult = "lang.hoverResult";
     public const string LangSignatureHelpResult = "lang.signatureHelpResult";
 
+    /// <summary>The answer to a lang.codeFix from a client that owns its file: the fixed cells (PartCells), or Message saying why not.</summary>
+    public const string LangCodeFixResult = "lang.codeFixResult";
+
     /// <summary>The cell list after normalising a notebook.sync, sent back when it had to change.</summary>
     public const string NotebookCells = "notebook.cells";
     public const string Error = "error";

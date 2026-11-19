@@ -278,6 +278,25 @@ public class StdioServerTests
     }
 
     [Fact]
+    public async Task Code_fix_results_are_routed_with_their_request_id()
+    {
+        await using var s = new Session();
+        var text = NotebookText.Build(["var a = 2;", "using System.Text;\nvar sb = new StringBuilder().Append(a);\nConsole.WriteLine(sb);"]);
+        var a = Notebook("a.cs", text);
+
+        await s.SendAsync(Open(a, text));
+        var diagnostics = await s.WaitFor(m => m.Type == BrowserMessages.CellDiagnostics && m.Notebook == a && m.CellId == "c2" && m.Diagnostics!.Any(d => d.Id == "RVB004"), "the RVB004 diagnostic", 60);
+        var d = diagnostics.Diagnostics!.First(d => d.Id == "RVB004");
+        await s.SendAsync(new ClientMessage { Type = BrowserMessages.LangCodeFix, Notebook = a, RequestId = 31, CellId = "c2", DiagnosticId = d.Id, Line = d.StartLine, Column = d.StartColumn });
+
+        var result = await s.WaitFor(m => m.Type == BrowserMessages.LangCodeFixResult, "the code fix result", 60);
+        Assert.Equal(a, result.Notebook);
+        Assert.Equal(31, result.RequestId);
+        Assert.DoesNotContain("using System.Text;", result.PartCells!.First(c => c.Id == "c2").Source);
+        Assert.Equal(text, File.ReadAllText(a));
+    }
+
+    [Fact]
     public async Task A_notebook_opens_with_the_text_it_was_sent_and_runs_nothing()
     {
         await using var s = new Session();
