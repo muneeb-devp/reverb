@@ -18,6 +18,7 @@ Reverb is a reactive notebook for C#. A notebook is an ordinary `.cs` file: chan
 - [Quickstart](#quickstart)
 - [Writing notebooks](#writing-notebooks): cells, output, widgets, charts, packages
 - [The editor](#the-editor): shortcuts, lazy mode, file watching
+- [VS Code](#vs-code): the same notebooks as native VS Code notebooks
 - [Command line](#command-line) and [using Reverb in CI](#using-reverb-in-ci)
 - [Rules and diagnostics](#rules-and-diagnostics)
 - [How it compares](#how-it-compares)
@@ -220,9 +221,17 @@ Some other things worth knowing:
 
 The `vscode` folder has an extension that opens Reverb notebooks as native VS Code notebooks, with VS Code's own cells, run buttons and outputs and Reverb's reactive engine underneath. It needs the Reverb tool installed (the extension offers to install it) and talks to it through `reverb serve --stdio`, so it opens no network port.
 
-To open a notebook, right-click the `.cs` file and choose Open With, then Reverb Notebook, or click "Open as Reverb notebook" at the top of the file. Running a cell reruns the cells that depend on it, and you get outputs, completions, hover and live errors in the cells. Notebooks save themselves about a second after you stop typing (the `reverb.autoSave` setting turns that off), and edits made to the file outside VS Code show up in the notebook. In a folder you haven't trusted, notebooks open but no kernel starts.
+To open a notebook, right-click the `.cs` file and choose Open With, then Reverb Notebook, or click "Open as Reverb notebook" at the top of the file. What you get:
 
-Widgets, charts and tables are drawn in the notebook, and there are quick fixes for diagnostics, a dependency view and a packages view. App mode is still browser-only. See [vscode/README.md](vscode/README.md) for the details.
+- **Reactive runs.** Running a cell reruns the cells that depend on it. Lazy mode ("Reverb: Toggle Lazy Mode") marks them stale instead.
+- **The same outputs as the browser editor.** Text, HTML, Markdown, images and errors, plus Reverb's tables, Vega-Lite charts and widgets, drawn in your VS Code theme. Moving a slider or picking from a dropdown sends the value to the kernel and reruns the cells that read it.
+- **Completions, hover and live errors** in the cells. For a `using` or type in the wrong cell, or an anonymous type passed between cells, the lightbulb offers Reverb's fix as one undoable edit.
+- **Cell options** in each cell's `…` menu: disable a cell, hide its code, or give it a name.
+- **Dependencies.** Under each cell, "uses N cells" and "used by N cells", and "Reverb: Show Dependencies" jumps to them.
+- **Packages.** The Reverb Packages view in the Explorer adds, updates and removes a notebook's NuGet packages.
+- **Autosave and file watching.** Notebooks save about a second after you stop typing (the `reverb.autoSave` setting turns that off), and edits made to the file outside VS Code show up in the notebook. Saving only changes the bytes you changed.
+
+In a folder you haven't trusted, notebooks open and can be edited, but no kernel starts and no packages are restored. App mode (`reverb run`) is still browser-only. See [vscode/README.md](vscode/README.md) for the details.
 
 ## Command line
 
@@ -356,7 +365,7 @@ npm test
 npm run test:integration
 ```
 
-Releases are published from tags: pushing `v1.2.3` runs [the release workflow](.github/workflows/release.yml), which tests, packs, smoke-tests the installed tool and publishes both packages to NuGet. Pushing `vscode-v1.2.3` publishes the VS Code extension.
+Releases are published from tags: pushing `v1.2.3` runs [the release workflow](.github/workflows/release.yml), which tests, packs, smoke-tests the installed tool and publishes both packages to NuGet. Pushing `vscode-v1.2.3` publishes the VS Code extension; [vscode/PUBLISHING.md](vscode/PUBLISHING.md) covers the one-time setup and the steps.
 
 ## Contributing
 
