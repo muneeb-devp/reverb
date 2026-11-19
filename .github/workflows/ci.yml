@@ -48,6 +48,8 @@ jobs:
         run: dotnet test Reverb.slnx -c Release --no-build -m:1 --logger "console;verbosity=normal"
 
       # The VS Code extension. Its integration tests start VS Code against the CLI built above.
+      # Its renderer builds from frontend/ and needs frontend/node_modules, which the Build step
+      # above installs (the Reverb.Server project runs npm ci there on a fresh checkout).
       - name: Extension build and unit tests
         working-directory: vscode
         # bash stops at the first failing command; PowerShell on Windows would carry on.

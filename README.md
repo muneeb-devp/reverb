@@ -222,7 +222,7 @@ The `vscode` folder has an extension that opens Reverb notebooks as native VS Co
 
 To open a notebook, right-click the `.cs` file and choose Open With, then Reverb Notebook, or click "Open as Reverb notebook" at the top of the file. Running a cell reruns the cells that depend on it, and you get outputs, completions, hover and live errors in the cells. Notebooks save themselves about a second after you stop typing (the `reverb.autoSave` setting turns that off), and edits made to the file outside VS Code show up in the notebook. In a folder you haven't trusted, notebooks open but no kernel starts.
 
-Widgets, charts and the dependency view are still browser-only. See [vscode/README.md](vscode/README.md) for the details.
+Widgets, charts and tables are drawn in the notebook, and there are quick fixes for diagnostics, a dependency view and a packages view. App mode is still browser-only. See [vscode/README.md](vscode/README.md) for the details.
 
 ## Command line
 
@@ -349,6 +349,7 @@ npx playwright test
 The extension has its own tests:
 
 ```sh
+cd frontend && npm ci && cd ..   # the extension's renderer uses the editor's components
 cd vscode
 npm ci
 npm test

@@ -65,6 +65,8 @@ jobs:
 
       # The extension's integration tests run against the CLI built here. ci.yml runs the whole
       # suite on all three OSes for the same commit; this is a last check before publishing.
+      # This also installs frontend/node_modules (the Reverb.Server project runs npm ci there on a
+      # fresh checkout), which the extension's renderer needs.
       - name: Build the CLI
         working-directory: .
         run: dotnet build src/Reverb.Cli -c Release

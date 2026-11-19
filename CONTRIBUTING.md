@@ -38,6 +38,7 @@ The VS Code extension:
 
 ```sh
 dotnet build Reverb.slnx      # the extension's integration tests use this CLI
+cd frontend && npm ci && cd .. # the extension's renderer builds from the frontend's source and packages
 cd vscode
 npm ci
 npm test                      # unit tests

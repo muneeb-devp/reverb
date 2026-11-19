@@ -15,7 +15,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Reverb shows notebooks in Restricted Mode but doesn't start a kernel, restore packages or offer completions until you trust the folder."
+      "description": "Reverb shows notebooks in Restricted Mode but doesn't start a kernel, restore packages, offer completions, apply fixes, change packages or send widget changes until you trust the folder."
     },
     "virtualWorkspaces": false
   },
