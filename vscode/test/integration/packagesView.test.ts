@@ -24,6 +24,9 @@ async function open(text: string): Promise<vscode.NotebookDocument> {
 
 const shown = () => api().packagesView.items().map((i) => `${i.label} ${i.description}`);
 
+// A rebuild restores the package from NuGet first, which can take well over 30 s on a cold CI runner.
+const REBUILD_MS = 120_000;
+
 describe("packages view", () => {
   before(() => setAutoSave(false));
   after(() => setAutoSave(undefined));
@@ -51,7 +54,7 @@ describe("packages view", () => {
     await vscode.commands.executeCommand("reverb.addPackage");
     await waitFor(() => shown().join() === "Humanizer 2.14.1", "the added package in the view");
     assert.ok(await nb.save());
-    await waitFor(() => api().session(nb.uri)?.kernelState === "ready", "the rebuilt kernel");
+    await waitFor(() => api().session(nb.uri)?.kernelState === "ready", "the rebuilt kernel", REBUILD_MS);
     const afterAdd = fs.readFileSync(nb.uri.fsPath, "utf8");
     assert.match(afterAdd, /^#:package Humanizer@2\.14\.1$/m);
 
@@ -66,12 +69,12 @@ describe("packages view", () => {
     await waitFor(() => shown().join() === "Humanizer 2.13.14", "the new version in the view");
     assert.ok(await nb.save());
     assert.strictEqual(fs.readFileSync(nb.uri.fsPath, "utf8"), afterAdd.replace("Humanizer@2.14.1", "Humanizer@2.13.14"));
-    await waitFor(() => api().session(nb.uri)?.kernelState === "ready", "the rebuilt kernel");
+    await waitFor(() => api().session(nb.uri)?.kernelState === "ready", "the rebuilt kernel", REBUILD_MS);
 
     // Remove from the item's button.
     await vscode.commands.executeCommand("reverb.removePackage", api().packagesView.nodes()[0]);
     await waitFor(() => shown().length === 0, "the package to leave the view");
     assert.ok(await nb.save());
     assert.strictEqual(fs.readFileSync(nb.uri.fsPath, "utf8"), afterAdd.replace("#:package Humanizer@2.14.1\n", ""));
-  });
+  }).timeout(5 * 60_000);
 });
