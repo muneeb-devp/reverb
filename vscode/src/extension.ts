@@ -9,6 +9,7 @@ import { ReverbStatusItems } from "./statusItems";
 import { AutoSave } from "./autoSave";
 import { registerLanguageServices, ReverbDiagnostics } from "./language";
 import { handleWidgetMessage, registerWidgets } from "./widgets";
+import { registerCodeFixes } from "./codeFixes";
 
 let output: vscode.OutputChannel;
 let process_: Promise<ReverbProcess | undefined> | undefined;
@@ -61,6 +62,7 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
     ...registerCommands(controller, getReverb, ui),
     registerWidgets(controller),
     ...registerLanguageServices((uri) => controller.session(uri)),
+    ...registerCodeFixes(controller, diagnostics),
   );
   if (context.extensionMode !== vscode.ExtensionMode.Test) return undefined;
   return {

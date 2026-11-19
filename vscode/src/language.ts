@@ -10,12 +10,13 @@ const SELECTOR: vscode.DocumentSelector = { notebookType: "reverb", language: "r
 /** The session for the notebook a cell document belongs to, when there is one and the folder is trusted. */
 export type SessionFor = (notebookUri: vscode.Uri) => NotebookSession | undefined;
 
-interface Target {
+export interface Target {
   session: NotebookSession;
   cellId: string;
 }
 
-function targetOf(document: vscode.TextDocument, sessionFor: SessionFor): Target | undefined {
+/** The session and cell key of a cell document, when the folder is trusted and the notebook is open in Reverb. */
+export function targetOf(document: vscode.TextDocument, sessionFor: SessionFor): Target | undefined {
   if (!vscode.workspace.isTrusted) return undefined;
   for (const nb of vscode.workspace.notebookDocuments) {
     const cell = nb.getCells().find((c) => c.document === document);
@@ -120,6 +121,12 @@ export class ReverbDiagnostics implements vscode.Disposable {
     } else if (diagnostics.length > 0) state.cells.set(cellId, diagnostics);
     else state.cells.delete(cellId);
     this.render(session, state);
+  }
+
+  /** The server's diagnostic that `shown` was made from, on the cell with key `cellId`. */
+  find(session: NotebookSession, cellId: string, shown: vscode.Diagnostic): Diagnostic | undefined {
+    const list = this.notebooks.get(session.doc.uri.toString())?.cells.get(cellId) ?? [];
+    return list.find((d) => d.id === shown.code && d.message === shown.message && d.startLine === shown.range.start.line && d.startColumn === shown.range.start.character);
   }
 
   /** Drops a cell's diagnostics, or all of the notebook's. */

@@ -19,12 +19,15 @@ export interface PreambleLine {
 /**
  * A browser server message. The stdio server's snapshot also carries the preamble, the lines
  * before the first cell, which the browser doesn't use. `notebook.cells` is the corrected cell
- * list, sent back to the editor that synced a list that needed fixing.
+ * list, sent back to the editor that synced a list that needed fixing. `lang.codeFixResult` answers
+ * a `lang.codeFix`: the whole fixed cell list, or a message saying why there's no fix. The server
+ * doesn't change its copy of the notebook; the editor applies the cells and syncs them.
  */
 export type ServerMessage =
   | Exclude<BrowserServerMessage, { type: "notebook.snapshot" }>
   | (Extract<BrowserServerMessage, { type: "notebook.snapshot" }> & { preamble?: PreambleLine[] })
-  | { type: "notebook.cells"; partCells: PartCell[] };
+  | { type: "notebook.cells"; partCells: PartCell[] }
+  | { type: "lang.codeFixResult"; requestId: number; partCells?: PartCell[]; message?: string };
 
 export interface CellAttributeData {
   key: string;

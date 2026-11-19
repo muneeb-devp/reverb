@@ -31,6 +31,13 @@ export type LanguageRequest = "lang.completions" | "lang.hover" | "lang.signatur
 export type LanguageAnswer = Extract<ServerMessage, { type: "lang.completionsResult" | "lang.hoverResult" | "lang.signatureHelpResult" }>;
 
 const LANGUAGE_TIMEOUT_MS = 5_000;
+const CODE_FIX_TIMEOUT_MS = 30_000;
+
+/** Reverb's answer to a fix: the whole fixed cell list, or why there isn't one. */
+export interface CodeFixAnswer {
+  cells?: PartCell[];
+  message?: string;
+}
 
 interface CellOutputs {
   /** The cell's outputs as the server has them. */
@@ -77,6 +84,7 @@ export class NotebookSession implements vscode.Disposable {
   private listeners: vscode.Disposable[] = [];
   private nextLanguageId = 1;
   private languageRequests = new Map<number, (m: LanguageAnswer | undefined) => void>();
+  private codeFixRequests = new Map<number, (answer: CodeFixAnswer) => void>();
 
   private constructor(
     readonly doc: vscode.NotebookDocument,
@@ -146,6 +154,7 @@ export class NotebookSession implements vscode.Disposable {
     this.statuses.clear();
     this.messages.clear();
     for (const answer of [...this.languageRequests.values()]) answer(undefined);
+    for (const answer of [...this.codeFixRequests.values()]) answer({ message: "Reverb stopped before it worked out the fix. Try the fix again once the notebook is open." });
     this.host.clearDiagnostics(this);
     this.host.stateChanged(this);
   }
@@ -194,6 +203,35 @@ export class NotebookSession implements vscode.Disposable {
       this.languageRequests.set(requestId, done);
       proc.send({ type, notebook: this.path, cellId, source, offset, requestId });
     });
+  }
+
+  /**
+   * Asks Reverb for the fix of a diagnostic on a cell. The cell list is sent first, so the fix is
+   * worked out from the text VS Code has now. Nothing changes until the caller applies the cells.
+   */
+  requestCodeFix(cellId: string, diagnostic: Diagnostic): Promise<CodeFixAnswer> {
+    this.flush();
+    const proc = this.proc;
+    if (!this.opened || !proc) return Promise.resolve({ message: `Reverb hasn't opened ${this.name} yet. Wait a moment and try the fix again.` });
+    const requestId = this.nextLanguageId++;
+    return new Promise((resolve) => {
+      const done = (answer: CodeFixAnswer) => {
+        if (!this.codeFixRequests.delete(requestId)) return;
+        clearTimeout(timer);
+        resolve(answer);
+      };
+      const timer = setTimeout(
+        () => done({ message: `Reverb didn't work out the fix within ${CODE_FIX_TIMEOUT_MS / 1000} s. Check that the kernel is running, then try the fix again.` }),
+        CODE_FIX_TIMEOUT_MS,
+      );
+      this.codeFixRequests.set(requestId, done);
+      proc.send({ type: "lang.codeFix", notebook: this.path, requestId, cellId, diagnosticId: diagnostic.id, line: diagnostic.startLine, column: diagnostic.startColumn });
+    });
+  }
+
+  /** The cells as they'd be sent to the server now, index for index with the notebook's cells. */
+  get cells(): PartCell[] {
+    return this.parts().cells;
   }
 
   /** Runs cells by Reverb id. The engine also runs what they depend on and what depends on them. */
@@ -335,6 +373,9 @@ export class NotebookSession implements vscode.Disposable {
       case "lang.hoverResult":
       case "lang.signatureHelpResult":
         this.languageRequests.get(m.requestId)?.(m);
+        break;
+      case "lang.codeFixResult":
+        this.codeFixRequests.get(m.requestId)?.(m.message !== undefined || !m.partCells ? { message: m.message ?? "Reverb sent no cells for the fix. Try the fix again." } : { cells: m.partCells });
         break;
       case "cell.outputs":
         this.setOutputs(m.cellId, m.outputs);

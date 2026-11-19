@@ -74,7 +74,8 @@
       { "command": "reverb.restartKernel", "title": "Reverb: Restart Kernel" },
       { "command": "reverb.toggleLazy", "title": "Reverb: Toggle Lazy Mode" },
       { "command": "reverb.addPackage", "title": "Reverb: Add Package" },
-      { "command": "reverb.removePackage", "title": "Reverb: Remove Package" }
+      { "command": "reverb.removePackage", "title": "Reverb: Remove Package" },
+      { "command": "reverb.applyFix", "title": "Reverb: Apply Fix" }
     ],
     "menus": {
       "commandPalette": [
@@ -82,7 +83,8 @@
         { "command": "reverb.restartKernel", "when": "notebookType == reverb" },
         { "command": "reverb.toggleLazy", "when": "notebookType == reverb" },
         { "command": "reverb.addPackage", "when": "notebookType == reverb" },
-        { "command": "reverb.removePackage", "when": "notebookType == reverb" }
+        { "command": "reverb.removePackage", "when": "notebookType == reverb" },
+        { "command": "reverb.applyFix", "when": "false" }
       ],
       "explorer/context": [
         { "command": "reverb.openAsNotebook", "when": "resourceExtname == .cs", "group": "navigation@100" }

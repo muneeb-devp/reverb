@@ -19,7 +19,13 @@ describe("package.json", () => {
       "reverb.toggleLazy": "Reverb: Toggle Lazy Mode",
       "reverb.addPackage": "Reverb: Add Package",
       "reverb.removePackage": "Reverb: Remove Package",
+      "reverb.applyFix": "Reverb: Apply Fix",
     });
+  });
+
+  it("keeps the fix command out of the palette, since it only works from a quick fix", () => {
+    const entry = manifest.contributes.menus.commandPalette.find((m: { command: string }) => m.command === "reverb.applyFix");
+    assert.deepStrictEqual(entry, { command: "reverb.applyFix", when: "false" });
   });
 
   it("contributes the outputs renderer for widgets, charts and tables", () => {
