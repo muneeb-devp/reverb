@@ -21,4 +21,16 @@ describe("package.json", () => {
       "reverb.removePackage": "Reverb: Remove Package",
     });
   });
+
+  it("contributes the outputs renderer for widgets, charts and tables", () => {
+    assert.deepStrictEqual(manifest.contributes.notebookRenderer, [
+      {
+        id: "reverb.outputs",
+        displayName: "Reverb outputs",
+        entrypoint: "./out/renderer/index.js",
+        mimeTypes: ["application/vnd.reverb.widget+json", "application/vnd.vegalite.v5+json", "application/vnd.reverb.table+json"],
+        requiresMessaging: "optional",
+      },
+    ]);
+  });
 });

@@ -4,7 +4,7 @@ import { ChartView } from "./ChartView";
 import { WidgetView } from "./Widgets";
 import { renderMarkdown } from "./markdown";
 
-interface TableData {
+export interface TableData {
   columns: string[];
   rows: string[][];
   total: number;
@@ -83,7 +83,7 @@ export function MarkdownView({ text }: { text: string }) {
   return <div className="markdown" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-function TableView({ table }: { table: TableData }) {
+export function TableView({ table }: { table: TableData }) {
   return (
     <div className="table-wrap">
       <table className="output-table">

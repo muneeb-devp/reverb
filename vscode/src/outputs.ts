@@ -10,8 +10,10 @@ export interface OutputItemDesc {
   data: string | Uint8Array;
 }
 
-// Richest first. Reverb's own table, object, widget and chart mimes have no renderer in VS Code
-// yet, so they're left out and the HTML or text that comes with them is shown.
+// Widgets, charts and tables are drawn by the extension's own renderer (src/renderer). Their HTML
+// and text fallbacks are left off: with them there, VS Code may pick one of those instead.
+const REVERB = [MIME.widget, MIME.vegaLite, MIME.table];
+// Richest first. Reverb's object mime has no renderer, so its HTML or text is shown.
 const SHOWN = [MIME.html, MIME.markdown, MIME.png, MIME.jpeg, MIME.svg, MIME.plain];
 const BASE64 = new Set<string>([MIME.png, MIME.jpeg]);
 
@@ -20,6 +22,8 @@ export function toOutputItems(output: Output): OutputItemDesc[] {
   if (output.stream) return [{ mime: output.stream === "stderr" ? STDERR_MIME : STDOUT_MIME, data: output.text ?? "" }];
   if (errorItem(output)) return [];
   const data = output.data ?? {};
+  const reverb = REVERB.find((mime) => data[mime] !== undefined);
+  if (reverb) return [{ mime: reverb, data: data[reverb] }];
   return SHOWN.filter((mime) => data[mime] !== undefined).map((mime) => ({
     mime,
     data: BASE64.has(mime) ? new Uint8Array(Buffer.from(data[mime], "base64")) : data[mime],

@@ -65,18 +65,26 @@ describe("outputs", () => {
     assert.strictEqual(errorItem({ stream: "stdout", text: "x" }), undefined);
   });
 
-  it("widget and chart mimes are dropped, their text kept", () => {
-    assert.deepEqual(toOutputItems({ data: { "application/vnd.reverb.widget+json": "{}", "text/plain": "[slider n = 7]" } }).map((i) => i.mime), ["text/plain"]);
-    assert.deepEqual(
-      toOutputItems({ data: { "application/vnd.vegalite.v5+json": "{}", "text/html": "<div>chart</div>", "text/plain": "chart" } }).map((i) => i.mime),
-      ["text/html", "text/plain"],
-    );
-    assert.deepEqual(
-      toOutputItems({
-        data: { "application/vnd.reverb.table+json": "{}", "application/vnd.reverb.object+json": "{}", "text/plain": "table" },
-      }).map((i) => i.mime),
-      ["text/plain"],
-    );
+  it("a widget output is only its widget item, so the Reverb renderer draws it", () => {
+    const json = JSON.stringify({ kind: "slider", label: "n", id: "w1", value: 7, min: 0, max: 10 });
+    const items = toOutputItems({ data: { "application/vnd.reverb.widget+json": json, "text/html": "<input>", "text/plain": "[slider n = 7]" } });
+    assert.deepEqual(items, [{ mime: "application/vnd.reverb.widget+json", data: json }]);
+  });
+
+  it("a chart output is only its Vega-Lite item", () => {
+    const json = JSON.stringify({ mark: "bar" });
+    const items = toOutputItems({ data: { "application/vnd.vegalite.v5+json": json, "text/html": "<div>chart</div>", "text/plain": "chart" } });
+    assert.deepEqual(items, [{ mime: "application/vnd.vegalite.v5+json", data: json }]);
+  });
+
+  it("a table output is only its table item", () => {
+    const json = JSON.stringify({ columns: ["a"], rows: [["1"]], total: 1 });
+    const items = toOutputItems({ data: { "application/vnd.reverb.table+json": json, "text/html": "<table></table>", "text/plain": "table" } });
+    assert.deepEqual(items, [{ mime: "application/vnd.reverb.table+json", data: json }]);
+  });
+
+  it("the object mime is still dropped, its text kept", () => {
+    assert.deepEqual(toOutputItems({ data: { "application/vnd.reverb.object+json": "{}", "text/plain": "obj" } }).map((i) => i.mime), ["text/plain"]);
   });
 
   it("png is base64-decoded", () => {
@@ -93,7 +101,7 @@ describe("outputs", () => {
   });
 
   it("an output with nothing VS Code can show gives no items", () => {
-    assert.deepEqual(toOutputItems({ data: { "application/vnd.reverb.widget+json": "{}" } }), []);
+    assert.deepEqual(toOutputItems({ data: { "application/vnd.reverb.object+json": "{}" } }), []);
     assert.deepEqual(toOutputItems({}), []);
   });
 

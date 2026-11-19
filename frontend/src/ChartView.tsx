@@ -21,8 +21,12 @@ function chartConfig(): Record<string, unknown> {
   };
 }
 
-/** A Vega-Lite chart. vega is loaded the first time a chart is shown. */
-export function ChartView({ spec }: { spec: string }) {
+/**
+ * A Vega-Lite chart. vega is loaded the first time a chart is shown. A host whose theme isn't
+ * the page's light or dark setting (the VS Code renderer) passes `themeKey` to redraw the chart
+ * when its theme changes.
+ */
+export function ChartView({ spec, themeKey }: { spec: string; themeKey?: string }) {
   const host = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
   const [problem, setProblem] = useState<string | null>(null);
@@ -56,7 +60,7 @@ export function ChartView({ spec }: { spec: string }) {
       cancelled = true;
       finalize?.();
     };
-  }, [spec, theme]);
+  }, [spec, theme, themeKey]);
 
   return (
     <div className="output-chart" data-testid="chart">

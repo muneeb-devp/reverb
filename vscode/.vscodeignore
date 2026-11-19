@@ -1,5 +1,6 @@
 **
 !out/extension.js
+!out/renderer/*.js
 !syntaxes/**
 !language-configuration.json
 !package.json

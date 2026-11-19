@@ -28,6 +28,15 @@
         "priority": "option"
       }
     ],
+    "notebookRenderer": [
+      {
+        "id": "reverb.outputs",
+        "displayName": "Reverb outputs",
+        "entrypoint": "./out/renderer/index.js",
+        "mimeTypes": ["application/vnd.reverb.widget+json", "application/vnd.vegalite.v5+json", "application/vnd.reverb.table+json"],
+        "requiresMessaging": "optional"
+      }
+    ],
     "languages": [
       {
         "id": "reverb-csharp",
@@ -88,9 +97,9 @@
     }
   },
   "scripts": {
-    "build": "tsc --noEmit && node esbuild.mjs",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json && node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "test": "tsc --noEmit && node esbuild.mjs --tests && mocha out/test/unit",
+    "test": "tsc --noEmit && tsc --noEmit -p tsconfig.renderer.json && node esbuild.mjs --tests && mocha out/test/unit",
     "test:integration": "tsc --noEmit && node esbuild.mjs && node esbuild.mjs --tests && node out/test/integration/run.js",
     "package": "vsce package"
   },

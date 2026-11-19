@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": [],
+    // React and its types live in the frontend's node_modules; esbuild finds them through nodePaths.
+    "paths": {
+      "react": ["../frontend/node_modules/@types/react"],
+      "react/*": ["../frontend/node_modules/@types/react/*"],
+      "react-dom/*": ["../frontend/node_modules/@types/react-dom/*"]
+    }
+  },
+  "include": [
+    "src/renderer",
+    "../frontend/src/protocol.ts",
+    "../frontend/src/Widgets.tsx",
+    "../frontend/src/ChartView.tsx",
+    "../frontend/src/Outputs.tsx"
+  ]
+}

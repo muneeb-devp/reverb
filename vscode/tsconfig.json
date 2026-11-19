@@ -10,5 +10,8 @@
     "esModuleInterop": true,
     "types": ["node", "mocha"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  // The renderer runs in the notebook webview and has its own config, tsconfig.renderer.json.
+  // Its DOM-free helpers are still checked here through the unit tests that import them.
+  "exclude": ["src/renderer"]
 }
