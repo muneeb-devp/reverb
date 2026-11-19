@@ -2,7 +2,7 @@ import * as assert from "node:assert";
 import * as fs from "node:fs";
 import * as vscode from "vscode";
 import type { ReverbApi } from "../../src/extension";
-import { reverbExtension, closeAll, editCell, notebookText, openReverbNotebook, waitFor, workspaceFile } from "./helpers";
+import { reverbExtension, closeAll, editCell, notebookText, openReverbNotebook, waitFor, workspaceFile, outputText, lf } from "./helpers";
 
 // What the C# helper NotebookText.Build(["var a = 1;", "var b = a * 10;", "Console.WriteLine(b + 1);"]) writes.
 const CHAIN =
@@ -47,7 +47,7 @@ async function run(nb: vscode.NotebookDocument, ...ids: string[]): Promise<void>
 }
 
 function text(c: vscode.NotebookCell): string {
-  return c.outputs.flatMap((o) => o.items.map((i) => new TextDecoder().decode(i.data))).join("");
+  return outputText(c);
 }
 
 /** Waits for the cell's execution to end with `success` after `afterOrder` (a newer run). */
@@ -187,7 +187,7 @@ describe("running", () => {
     assert.ok(Date.now() - started < 30_000);
     const outputs = cell(nb, "c1").outputs;
     const last = outputs[outputs.length - 1];
-    const lastText = new TextDecoder().decode(last.items[last.items.length - 1].data);
+    const lastText = lf(new TextDecoder().decode(last.items[last.items.length - 1].data));
     assert.ok(lastText.endsWith("19999\n"), `the output ends with ${JSON.stringify(lastText.slice(-20))}`);
     assert.ok(text(cell(nb, "c1")).startsWith("0\n1\n2\n"));
   });

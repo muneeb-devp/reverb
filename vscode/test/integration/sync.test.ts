@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 import type { ReverbApi } from "../../src/extension";
-import { reverbExtension, closeAll, editCell, notebookText, openReverbNotebook, setAutoSave, waitFor, workspaceFile } from "./helpers";
+import { reverbExtension, closeAll, editCell, notebookText, openReverbNotebook, setAutoSave, waitFor, workspaceFile, outputText } from "./helpers";
 
 const CHAIN = notebookText(["var a = 1;", "var b = a * 10;", "Console.WriteLine(b + 1);"]);
 const SETUP = "// %% setup\nusing Reverb;\nusing static Reverb.Notebook;\n\n";
@@ -38,7 +38,7 @@ async function run(nb: vscode.NotebookDocument, id: string): Promise<void> {
 }
 
 function text(c: vscode.NotebookCell): string {
-  return c.outputs.flatMap((o) => o.items.map((i) => new TextDecoder().decode(i.data))).join("");
+  return outputText(c);
 }
 
 /** Runs a cell and returns what it printed once it has ended successfully. */
@@ -242,7 +242,10 @@ describe("keeping VS Code and the file in step", () => {
     await vscode.window.showNotebookDocument(moved);
     await waitFor(() => api().session(moved.uri)?.kernelState === "ready", "the kernel for the new path");
     const printed = (await output(moved, "c1")).trimEnd();
-    assert.ok([folder, fs.realpathSync(folder)].includes(printed), `Notebook.Folder was '${printed}', expected '${folder}'`);
+    // The same folder can be spelled several ways: macOS's /private/var for /var, and Windows'
+    // short names (RUNNER~1) for long ones. realpathSync.native gives the long Windows form.
+    const same = (p: string) => fs.realpathSync.native(p).toLowerCase();
+    assert.strictEqual(same(printed), same(folder), `Notebook.Folder was '${printed}', expected '${folder}'`);
     assert.strictEqual(api().session(nb.uri), undefined);
   });
 

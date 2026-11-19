@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 import { defaultUi } from "../../src/commands";
 import type { ReverbApi } from "../../src/extension";
-import { reverbExtension, closeAll, notebookText, openReverbNotebook, setAutoSave, waitFor, workspaceFile } from "./helpers";
+import { reverbExtension, closeAll, notebookText, openReverbNotebook, setAutoSave, waitFor, workspaceFile, outputText } from "./helpers";
 
 const WAIT_FOREVER = "await Task.Delay(-1, Notebook.CancellationToken);";
 const CHAIN = notebookText(["var a = 1;", "var b = a * 10;", "Console.WriteLine(b + 1);"]);
@@ -38,7 +38,7 @@ async function run(nb: vscode.NotebookDocument, ...ids: string[]): Promise<void>
 }
 
 function text(c: vscode.NotebookCell): string {
-  return c.outputs.flatMap((o) => o.items.map((i) => new TextDecoder().decode(i.data))).join("");
+  return outputText(c);
 }
 
 function ended(nb: vscode.NotebookDocument, id: string, success: boolean, timeoutMs = 30_000) {

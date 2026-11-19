@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as vscode from "vscode";
 import type { ReverbApi } from "../../src/extension";
-import { reverbExtension, closeAll, notebookText, openReverbNotebook, waitFor, workspaceFile } from "./helpers";
+import { reverbExtension, closeAll, notebookText, openReverbNotebook, waitFor, workspaceFile, outputText } from "./helpers";
 
 function api(): ReverbApi {
   const ext = reverbExtension<ReverbApi>();
@@ -12,7 +12,7 @@ function api(): ReverbApi {
 }
 
 function text(c: vscode.NotebookCell): string {
-  return c.outputs.flatMap((o) => o.items.map((i) => new TextDecoder().decode(i.data))).join("");
+  return outputText(c);
 }
 
 // VS Code itself asks for trust before it runs a cell in a restricted window, and that dialog

@@ -1,7 +1,7 @@
 import * as assert from "node:assert";
 import * as fs from "node:fs";
 import * as vscode from "vscode";
-import { closeAll, editAndSave, openReverbNotebook, setAutoSave, workspaceFile } from "./helpers";
+import { closeAll, editAndSave, openReverbNotebook, setAutoSave, waitFor, workspaceFile } from "./helpers";
 
 // Saving must not change bytes the user didn't change. These tests save when they choose to.
 describe("serializer", () => {
@@ -74,7 +74,12 @@ describe("serializer", () => {
       ]),
     ]);
     assert.ok(await vscode.workspace.applyEdit(edit));
-    assert.ok(await nb.save());
+    // Reverb gives the new cell an id by editing its metadata. Saving before that edit lands can
+    // race it on a slow machine, so wait for it, as a user would see it.
+    const added = nb.cellAt(nb.cellCount - 1);
+    await waitFor(() => added.metadata.reverb?.id, "Reverb to give the new cell an id");
+    if (nb.isDirty) assert.ok(await nb.save(), "save should succeed");
+    await waitFor(() => !nb.isDirty, "the notebook to be saved", 5000);
     const saved = fs.readFileSync(file, "utf8");
     assert.ok(saved.startsWith(original.replace(/\n$/, "")), "the cells that were there keep their bytes");
     assert.match(saved.slice(original.length - 1), /^\n\n\/\/ %% id=[a-z0-9]+\nvar added = 1;\n$/);

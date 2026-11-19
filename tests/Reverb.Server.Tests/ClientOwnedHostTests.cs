@@ -180,6 +180,8 @@ public class ClientOwnedHostTests
         Assert.All(new[] { "c1", "c2", "c3" }, id => Assert.Equal(1, client.Runs(id)));
     }
 
+    const string Rebuilt = "The packages changed, so the kernel was rebuilt.";
+
     [Fact]
     public async Task A_package_change_restarts_the_kernel_without_running_cells()
     {
@@ -191,8 +193,9 @@ public class ClientOwnedHostTests
         var runs = client.Runs("c3");
 
         await client.SendAsync(new ClientMessage { Type = BrowserMessages.PackagesSet, Packages = [new PackageView { Name = "Humanizer", Version = "2.14.1" }] });
-        await client.WaitFor(() => client.KernelState is "building" or "starting", what: "the kernel to restart");
-        await client.WaitFor(() => client.KernelState == "ready", what: "the new kernel to be ready");
+        // The rebuild can pass through "building" and "starting" faster than WaitFor polls, so wait
+        // for the status the new kernel reports instead.
+        await client.WaitFor(() => client.Messages.Any(m => m.Type == BrowserMessages.KernelStatus && m.State == "ready" && m.Message == Rebuilt), what: "the new kernel to be ready");
         await nb.Host.IdleAsync();
 
         foreach (var id in new[] { "c1", "c2", "c3" }) Assert.Equal("stale", client.Status(id));
@@ -212,8 +215,9 @@ public class ClientOwnedHostTests
         var withPackage = Chain.Replace("#:package Reverb.Runtime@0.1.0\n", "#:package Reverb.Runtime@0.1.0\n#:package Humanizer@2.14.1\n");
         Assert.NotEqual(Chain, withPackage);
         await client.SendAsync(new ClientMessage { Type = BrowserMessages.NotebookReload, Text = withPackage });
-        await client.WaitFor(() => client.KernelState is "building" or "starting", what: "the kernel to restart");
-        await client.WaitFor(() => client.KernelState == "ready", what: "the new kernel to be ready");
+        // The rebuild can pass through "building" and "starting" faster than WaitFor polls, so wait
+        // for the status the new kernel reports instead.
+        await client.WaitFor(() => client.Messages.Any(m => m.Type == BrowserMessages.KernelStatus && m.State == "ready" && m.Message == Rebuilt), what: "the new kernel to be ready");
         await nb.Host.IdleAsync();
 
         foreach (var id in new[] { "c1", "c2", "c3" }) Assert.Equal("stale", client.Status(id));

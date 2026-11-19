@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as vscode from "vscode";
 import type { ReverbApi } from "../../src/extension";
 import { MIME, type WidgetSpec } from "../../../frontend/src/protocol";
-import { reverbExtension, closeAll, notebookText, openReverbNotebook, waitFor, workspaceFile } from "./helpers";
+import { reverbExtension, closeAll, notebookText, openReverbNotebook, waitFor, workspaceFile, outputText } from "./helpers";
 
 let fileCount = 0;
 
@@ -33,7 +33,7 @@ function cell(nb: vscode.NotebookDocument, id: string): vscode.NotebookCell {
 }
 
 function reader(nb: vscode.NotebookDocument): string {
-  return cell(nb, "c2").outputs.flatMap((o) => o.items.map((i) => new TextDecoder().decode(i.data))).join("").trim();
+  return outputText(cell(nb, "c2")).trim();
 }
 
 function widgetId(nb: vscode.NotebookDocument): string {

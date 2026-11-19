@@ -4,6 +4,16 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as vscode from "vscode";
 
+/** Text with \n line endings: on Windows, what a cell prints and what's typed into a cell use \r\n. */
+export function lf(text: string): string {
+  return text.replace(/\r\n/g, "\n");
+}
+
+/** Everything a cell's outputs show, as text with \n line endings. */
+export function outputText(c: vscode.NotebookCell): string {
+  return lf(c.outputs.flatMap((o) => o.items.map((i) => new TextDecoder().decode(i.data))).join(""));
+}
+
 /** The test workspace, a fresh copy of tests/fixtures made by run.ts. */
 export function workspaceFile(name: string): string {
   const folder = vscode.workspace.workspaceFolders?.[0];

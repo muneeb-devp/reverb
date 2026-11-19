@@ -2,7 +2,7 @@ import * as assert from "node:assert";
 import * as fs from "node:fs";
 import * as vscode from "vscode";
 import type { ReverbApi } from "../../src/extension";
-import { reverbExtension, closeAll, notebookText, openReverbNotebook, waitFor, workspaceFile } from "./helpers";
+import { reverbExtension, closeAll, notebookText, openReverbNotebook, waitFor, workspaceFile, outputText, lf } from "./helpers";
 
 // The notebook ClientOwnedHostTests uses for RVB004: a using in a code cell.
 const MISPLACED_USING = notebookText(["var a = 2;", "using System.Text;\nvar sb = new StringBuilder().Append(a);\nConsole.WriteLine(sb);"]);
@@ -25,7 +25,7 @@ function cell(nb: vscode.NotebookDocument, id: string): vscode.NotebookCell {
 }
 
 function output(c: vscode.NotebookCell): string {
-  return c.outputs.flatMap((o) => o.items.map((i) => new TextDecoder().decode(i.data))).join("");
+  return outputText(c);
 }
 
 /** The file split at its cell markers: the lines above the cells, then one piece per cell. */
@@ -219,7 +219,7 @@ describe("code fixes", () => {
     );
     assert.strictEqual(cell(nb, "setup").document.getText(), setup);
     assert.match(cell(nb, "c2").document.getText(), /using System\.Text;/);
-    assert.strictEqual(cell(nb, "c1").document.getText(), "var a = 2;\nvar typed = 1;");
+    assert.strictEqual(lf(cell(nb, "c1").document.getText()), "var a = 2;\nvar typed = 1;");
   }
 
   it("applies nothing when Reverb refuses a fix because the cells changed", () => typeDuringFix("fix-changed-synced.cs", true));
