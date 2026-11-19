@@ -87,7 +87,7 @@ describe("keeping VS Code and the file in step", () => {
     const nb = await open(CHAIN);
     await editCell(nb, "c1", "var a = 2;");
     await waitFor(() => file(nb) === CHAIN.replace("var a = 1;", "var a = 2;"), "the file to have the new text", 2000);
-    assert.strictEqual(nb.isDirty, false);
+    await waitFor(() => !nb.isDirty, "VS Code to clear the dirty mark", 2000);
   });
 
   it("an untouched notebook isn't saved", async () => {
