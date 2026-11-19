@@ -20,7 +20,19 @@ describe("package.json", () => {
       "reverb.addPackage": "Reverb: Add Package",
       "reverb.removePackage": "Reverb: Remove Package",
       "reverb.applyFix": "Reverb: Apply Fix",
+      "reverb.toggleDisabled": "Reverb: Toggle Disabled",
+      "reverb.toggleHideCode": "Reverb: Toggle Hide Code",
+      "reverb.nameCell": "Reverb: Name Cell…",
     });
+  });
+
+  it("offers the cell commands on code cells of Reverb notebooks, and in the palette for them", () => {
+    const commands = ["reverb.toggleDisabled", "reverb.toggleHideCode", "reverb.nameCell"];
+    const menus = manifest.contributes.menus;
+    for (const command of commands) {
+      assert.strictEqual(menus["notebook/cell/title"].find((m: { command: string }) => m.command === command)?.when, "notebookType == reverb && notebookCellType == code");
+      assert.strictEqual(menus.commandPalette.find((m: { command: string }) => m.command === command)?.when, "notebookType == reverb");
+    }
   });
 
   it("keeps the fix command out of the palette, since it only works from a quick fix", () => {

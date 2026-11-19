@@ -5,6 +5,7 @@ import { ReverbSerializer } from "./serializer";
 import { ReverbController } from "./controller";
 import type { NotebookSession } from "./session";
 import { defaultUi, registerCommands, type Ui } from "./commands";
+import { CellCollapse } from "./cellCollapse";
 import { ReverbStatusItems } from "./statusItems";
 import { AutoSave } from "./autoSave";
 import { registerLanguageServices, ReverbDiagnostics } from "./language";
@@ -35,6 +36,10 @@ export interface ReverbApi {
   handleWidgetMessage(uri: vscode.Uri, message: unknown): boolean;
   /** The status bar text under a cell, or undefined when it has none. */
   cellStatus(cell: vscode.NotebookCell): string | undefined;
+  /** The name shown under a cell, or undefined when it has none. */
+  cellName(cell: vscode.NotebookCell): string | undefined;
+  /** Whether the last request for the cell's input was to collapse (true) or expand (false) it, or undefined when there was none. */
+  inputCollapseRequested(cell: vscode.NotebookCell): boolean | undefined;
   /** The kernel item for the active notebook, or undefined when it's hidden. */
   kernelStatus(): { text: string; tooltip: string } | undefined;
 }
@@ -54,13 +59,15 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
   const status = new ReverbStatusItems(controller);
   const ui: Ui = { ...defaultUi };
   const autoSave = new AutoSave((line) => output.appendLine(line));
+  const collapse = new CellCollapse((line) => output.appendLine(line));
   context.subscriptions.push(
     controller,
+    collapse,
     diagnostics,
     status,
     autoSave,
-    ...registerCommands(controller, getReverb, ui),
     registerWidgets(controller),
+    ...registerCommands(controller, getReverb, ui, collapse),
     ...registerLanguageServices((uri) => controller.session(uri)),
     ...registerCodeFixes(controller, diagnostics),
   );
@@ -75,6 +82,8 @@ export function activate(context: vscode.ExtensionContext): ReverbApi | undefine
     ui,
     handleWidgetMessage: (uri, message) => handleWidgetMessage(controller, uri, message),
     cellStatus: (cell) => status.cellText(cell),
+    cellName: (cell) => status.nameText(cell),
+    inputCollapseRequested: (cell) => collapse.requestedFor(cell),
     kernelStatus: () => status.kernelText(),
   };
 }

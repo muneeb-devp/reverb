@@ -75,7 +75,10 @@
       { "command": "reverb.toggleLazy", "title": "Reverb: Toggle Lazy Mode" },
       { "command": "reverb.addPackage", "title": "Reverb: Add Package" },
       { "command": "reverb.removePackage", "title": "Reverb: Remove Package" },
-      { "command": "reverb.applyFix", "title": "Reverb: Apply Fix" }
+      { "command": "reverb.applyFix", "title": "Reverb: Apply Fix" },
+      { "command": "reverb.toggleDisabled", "title": "Reverb: Toggle Disabled" },
+      { "command": "reverb.toggleHideCode", "title": "Reverb: Toggle Hide Code" },
+      { "command": "reverb.nameCell", "title": "Reverb: Name Cell…" }
     ],
     "menus": {
       "commandPalette": [
@@ -84,7 +87,15 @@
         { "command": "reverb.toggleLazy", "when": "notebookType == reverb" },
         { "command": "reverb.addPackage", "when": "notebookType == reverb" },
         { "command": "reverb.removePackage", "when": "notebookType == reverb" },
-        { "command": "reverb.applyFix", "when": "false" }
+        { "command": "reverb.applyFix", "when": "false" },
+        { "command": "reverb.toggleDisabled", "when": "notebookType == reverb" },
+        { "command": "reverb.toggleHideCode", "when": "notebookType == reverb" },
+        { "command": "reverb.nameCell", "when": "notebookType == reverb" }
+      ],
+      "notebook/cell/title": [
+        { "command": "reverb.toggleDisabled", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@1" },
+        { "command": "reverb.toggleHideCode", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@2" },
+        { "command": "reverb.nameCell", "when": "notebookType == reverb && notebookCellType == code", "group": "reverb@3" }
       ],
       "explorer/context": [
         { "command": "reverb.openAsNotebook", "when": "resourceExtname == .cs", "group": "navigation@100" }

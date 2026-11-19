@@ -1,5 +1,6 @@
 // The status bar items: one under each code cell and one for the active notebook's kernel.
 import * as vscode from "vscode";
+import { nameOf } from "./cellAttrs";
 import type { ReverbController } from "./controller";
 import { cellStatusText, kernelStatusText } from "./statusBar";
 
@@ -16,9 +17,16 @@ export class ReverbStatusItems implements vscode.Disposable {
       vscode.notebooks.registerNotebookCellStatusBarItemProvider("reverb", {
         onDidChangeCellStatusBarItems: this.cellChanged.event,
         provideCellStatusBarItems: (cell) => {
+          const items: vscode.NotebookCellStatusBarItem[] = [];
+          const name = this.nameText(cell);
+          if (name) items.push({ text: name, tooltip: "Cell name", alignment: vscode.NotebookCellStatusBarAlignment.Left, priority: 10 });
           const text = this.cellText(cell);
-          return text ? [{ text, alignment: vscode.NotebookCellStatusBarAlignment.Left }] : [];
+          if (text) items.push({ text, alignment: vscode.NotebookCellStatusBarAlignment.Left });
+          return items;
         },
+      }),
+      vscode.workspace.onDidChangeNotebookDocument((e) => {
+        if (e.notebook.notebookType === "reverb" && e.cellChanges.some((c) => c.metadata)) this.cellChanged.fire();
       }),
       controller.onDidChangeSession(() => this.refresh()),
       vscode.window.onDidChangeActiveNotebookEditor(() => this.refreshKernel()),
@@ -34,6 +42,12 @@ export class ReverbStatusItems implements vscode.Disposable {
     const session = this.controller.session(cell.notebook.uri);
     if (!id || !session) return undefined;
     return cellStatusText(session.statusOf(id), session.messageOf(id));
+  }
+
+  /** The cell's name, shown under it as its own item. It's file content, so it shows without a session. */
+  nameText(cell: vscode.NotebookCell): string | undefined {
+    if (cell.kind !== vscode.NotebookCellKind.Code || cell.metadata.reverb?.kind !== "code") return undefined;
+    return nameOf(cell.metadata.reverb?.attrs);
   }
 
   /** The kernel item as shown, or undefined while no Reverb notebook is active. */
