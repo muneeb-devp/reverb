@@ -24,7 +24,7 @@ jobs:
           dotnet-version: 10.0.x
 
       # The editor frontend is built by `dotnet build`, so Node is needed from here on.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
