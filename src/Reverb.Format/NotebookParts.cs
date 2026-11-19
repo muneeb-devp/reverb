@@ -52,7 +52,9 @@ public static class NotebookParts
         {
             Kind = ParseKind(c.Kind),
             Id = c.Id,
-            Source = c.Source,
+            // Sources use \n; the file's own newline is applied when it's written. An editor on
+            // Windows can send \r\n, which would otherwise end up as \r\r\n in a CRLF file.
+            Source = c.Source.Replace("\r\n", "\n").Replace('\r', '\n'),
             Attributes = FromData(c.Attributes),
             Raw = c.Raw is null ? null : FromData(c.Raw),
         })],

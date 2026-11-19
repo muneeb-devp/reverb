@@ -36,6 +36,15 @@ public class NotebookPartsTests
         if (text.Contains("\r\n")) Assert.DoesNotContain("\n", result.Replace("\r\n", ""));
     }
 
+    [Theory, InlineData("\n"), InlineData("\r\n")]
+    public void A_source_sent_with_crlf_is_written_with_the_file_s_newline(string newline)
+    {
+        var text = $"// reverb-notebook v1{newline}{newline}// %% id=a{newline}var a = 1;{newline}";
+        var parts = NotebookParts.Split(NotebookDocument.Parse(text));
+        var edited = parts with { Cells = [.. parts.Cells.Select(c => c.Id == "a" ? c with { Source = "var a = 1;\r\nvar b = 2;" } : c)] };
+        Assert.Equal($"// reverb-notebook v1{newline}{newline}// %% id=a{newline}var a = 1;{newline}var b = 2;{newline}", NotebookParts.Join(edited).Serialize());
+    }
+
     [Fact]
     public void A_cell_without_raw_text_is_written_fresh()
     {

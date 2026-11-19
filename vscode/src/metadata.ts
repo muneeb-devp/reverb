@@ -63,7 +63,9 @@ function toPart(cell: PlainCell): PartCell {
   return {
     kind: kindOf(cell),
     id: m?.id ?? null,
-    source: cell.source,
+    // VS Code on Windows can give a cell \r\n line endings (Enter in a one-line cell does). Reverb
+    // keeps sources with \n and writes the file's own newline, so they're normalised here.
+    source: cell.source.replace(/\r\n?/g, "\n"),
     attributes: m?.attrs ?? [],
     raw: m?.raw ?? null,
   };

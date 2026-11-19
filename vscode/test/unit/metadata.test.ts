@@ -63,6 +63,11 @@ describe("metadata", () => {
     assert.deepStrictEqual(result.cells[0], { kind: "code", id: null, source: "x", attributes: [], raw: null });
   });
 
+  it("sends cell text with \\n even when VS Code gave the cell \\r\\n", () => {
+    const result = cellsToParts([{ kind: "code", source: "var a = 1;\r\nvar b = 2;\rvar c = 3;", metadata: {} }], meta);
+    assert.strictEqual(result.cells[0].source, "var a = 1;\nvar b = 2;\nvar c = 3;");
+  });
+
   it("markdown cells keep kind markdown", () => {
     const { cells } = partsToCells(parts);
     assert.strictEqual(cells[2].kind, "markup");
