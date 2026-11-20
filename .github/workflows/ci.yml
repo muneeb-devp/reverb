@@ -77,12 +77,12 @@ jobs:
         working-directory: vscode
         run: npm run package
 
-      # The sample notebook must run with plain `dotnet run` on every OS.
+      # A sample notebook must run with plain `dotnet run` on every OS, against the Reverb.Runtime built here.
       - name: Notebook runs with dotnet run
         # Runs even when an extension step above failed.
         if: success() || failure()
         shell: bash
-        run: spikes/m0-directives/check.sh
+        run: eng/check-dotnet-run.sh
 
       # How long kernel steps take on this machine (compile, load), whatever the tests did.
       - name: Kernel timings

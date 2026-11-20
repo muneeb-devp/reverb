@@ -12,7 +12,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="$(TestSdkVersion)" />
     <Using Include="Xunit" />
   </ItemGroup>
-  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Reverb.Spikes.Tests'">
+  <ItemGroup>
     <Compile Include="$(MSBuildThisFileDirectory)Shared/*.cs" Link="Shared/%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

@@ -2,5 +2,4 @@
 *.cs text eol=lf
 
 # Byte-exact files: line endings are part of what's being tested.
-spikes/m0-directives/variants/** -text
 tests/fixtures/** -text
