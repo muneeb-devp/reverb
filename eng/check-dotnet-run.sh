@@ -8,6 +8,8 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
+# Git Bash on Windows hands out /tmp/... paths that only Bash understands. dotnet needs C:/... ones.
+if command -v cygpath >/dev/null 2>&1; then work="$(cygpath -m "$work")"; fi
 trap 'rm -rf "$work"' EXIT
 
 # A clean package cache, so nothing left over from earlier builds can stand in for the package.
