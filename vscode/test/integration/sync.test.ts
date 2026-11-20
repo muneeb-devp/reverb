@@ -146,8 +146,13 @@ describe("keeping VS Code and the file in step", () => {
       return ids[0] === "c1" && ids[1] && ids[1] !== "c1" && ids;
     }, "the copy to get its own id", 5000);
     assert.deepStrictEqual(ids.slice(2), ["c2", "c3"]);
-    await waitFor(() => JSON.stringify(markerIds(file(nb))) === JSON.stringify(ids), "the file to have both ids", 5000);
-    assert.strictEqual(new Set(markerIds(file(nb))).size, 4);
+    // Reads the file once and checks that read. A second read can land in the middle of an autosave
+    // rewriting the file, and see it empty.
+    const onDisk = await waitFor(() => {
+      const found = markerIds(file(nb));
+      return JSON.stringify(found) === JSON.stringify(ids) && found;
+    }, "the file to have both ids", 5000);
+    assert.strictEqual(new Set(onDisk).size, 4);
     await waitFor(() => !nb.isDirty, "the notebook to be saved", 5000);
     // The server has the cell under the same id. (Running it fails: it declares `a` again.)
     await waitFor(() => api().session(nb.uri)?.statusOf(ids[1]!), "the server to report on the copy", 5000);

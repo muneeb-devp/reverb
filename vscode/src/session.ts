@@ -70,8 +70,10 @@ export class NotebookSession implements vscode.Disposable {
    * session's own edits (corrections, the preamble) from being synced back.
    */
   private lastSent: string | undefined;
-  /** Reloads waiting for the file's text. Syncs wait for them, so they can't arrive first. */
+  /** Reloads waiting for the file's text. Syncs and runs wait for them, so they can't arrive first. */
   private reloads = 0;
+  /** Runs asked for while a reload was waiting. They go out once it has been sent. */
+  private runsAfterReload: (() => void)[] = [];
   private syncs = 0;
   private tracker = new ExecutionTracker();
   private executions = new Map<string, vscode.NotebookCellExecution>();
@@ -239,6 +241,8 @@ export class NotebookSession implements vscode.Disposable {
 
   /** Runs cells by Reverb id. The engine also runs what they depend on and what depends on them. */
   run(cellIds: string[]): void {
+    // The file just changed and the server hasn't been told. Running now would run the old text.
+    if (this.reloads > 0) return void this.runsAfterReload.push(() => this.run(cellIds));
     this.flush();
     if (!this.canRun()) return;
     for (const id of cellIds) {
@@ -248,6 +252,7 @@ export class NotebookSession implements vscode.Disposable {
   }
 
   runAll(): void {
+    if (this.reloads > 0) return void this.runsAfterReload.push(() => this.runAll());
     this.flush();
     if (!this.canRun()) return;
     for (const cell of this.doc.getCells()) {
@@ -431,6 +436,7 @@ export class NotebookSession implements vscode.Disposable {
       this.keepServerPreamble();
     }
     this.flush();
+    if (this.reloads === 0) for (const run of this.runsAfterReload.splice(0)) run();
   }
 
   /**
