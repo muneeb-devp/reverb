@@ -19,7 +19,7 @@ reverb new hello.cs
 
 ```csharp
 #!/usr/bin/env dotnet
-#:package Reverb.Runtime@0.1.1
+#:package Reverb.Runtime@0.2.0
 // reverb-notebook v1
 
 // %% setup

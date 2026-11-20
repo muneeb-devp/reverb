@@ -5,7 +5,7 @@ The library that [Reverb](https://github.com/muneeb-devp/reverb) notebooks refer
 You don't usually add it yourself. `reverb new` writes this line at the top of every notebook:
 
 ```csharp
-#:package Reverb.Runtime@0.1.1
+#:package Reverb.Runtime@0.2.0
 ```
 
 To create and edit notebooks, install the tool, [Reverb.Notebooks](https://www.nuget.org/packages/Reverb.Notebooks):

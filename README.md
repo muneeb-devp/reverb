@@ -8,31 +8,40 @@
 [![CI](https://github.com/muneeb-devp/reverb/actions/workflows/ci.yml/badge.svg)](https://github.com/muneeb-devp/reverb/actions/workflows/ci.yml)
 [![NuGet](https://img.shields.io/nuget/v/Reverb.Notebooks?label=Reverb.Notebooks)](https://www.nuget.org/packages/Reverb.Notebooks)
 [![NuGet](https://img.shields.io/nuget/v/Reverb.Runtime?label=Reverb.Runtime)](https://www.nuget.org/packages/Reverb.Runtime)
+[![VS Code](https://img.shields.io/visual-studio-marketplace/v/MuneebMughal.reverb-notebooks?label=VS%20Code)](https://marketplace.visualstudio.com/items?itemName=MuneebMughal.reverb-notebooks)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-Reverb is a reactive notebook for C#. A notebook is an ordinary `.cs` file: change a cell and the cells that use its results run again. The same file runs with `dotnet run`, diffs cleanly in Git, and needs nothing else installed to work.
+Reverb is a reactive notebook for C#. Write your code in cells, and when you change one, only the cells that use its results run again, the way a spreadsheet recalculates.
+
+A notebook is just a `.cs` file. It runs with `dotnet run`, shows up in Git as a normal diff, and has no JSON or saved output in it. You can edit it in the browser, in VS Code, or in any text editor.
 
 ![A tour of Reverb using samples/sales-explorer.cs: the notebook as a plain .cs file, a slider and a dropdown redrawing charts, a code change updating the cells after it, completions and hover, an error caught while typing, the file changed from outside, adding a NuGet package with a one-click fix for a misplaced using, dark mode, the notebook served as an app, an exported HTML page, and a Jupyter notebook converted](assets/demo.gif)
 
 - [Install](#install)
 - [Quickstart](#quickstart)
 - [Writing notebooks](#writing-notebooks): cells, output, widgets, charts, packages
-- [The editor](#the-editor): shortcuts, lazy mode, file watching
+- [The browser editor](#the-browser-editor): shortcuts, lazy mode, file watching
 - [VS Code](#vs-code): the same notebooks as native VS Code notebooks
 - [Command line](#command-line) and [using Reverb in CI](#using-reverb-in-ci)
 - [Rules and diagnostics](#rules-and-diagnostics)
+- [Common questions](#common-questions)
 - [How it compares](#how-it-compares)
-- [Building from source](#building-from-source)
+- [How it works](#how-it-works)
+- [Building from source](#building-from-source) and [contributing](#contributing)
 
 ## Install
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). Then pick how you want to work:
+
+**In VS Code.** Install [Reverb Notebooks](https://marketplace.visualstudio.com/items?itemName=MuneebMughal.reverb-notebooks) from the Extensions view. It offers to install the command line tool for you the first time you open a notebook.
+
+**In the browser, or from the terminal.** Install the tool:
 
 ```sh
 dotnet tool install -g Reverb.Notebooks
 ```
 
-That gives you the `reverb` command. To update later, run `dotnet tool update -g Reverb.Notebooks`.
+That gives you the `reverb` command. Update it later with `dotnet tool update -g Reverb.Notebooks`.
 
 ## Quickstart
 
@@ -40,7 +49,9 @@ That gives you the `reverb` command. To update later, run `dotnet tool update -g
 reverb new hello.cs     # creates a starter notebook and opens it in your browser
 ```
 
-Or try one of the samples:
+Change a cell, press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Enter</kbd>, and watch what depends on it run again. The same file works anywhere: `dotnet run hello.cs` prints its output in the terminal.
+
+Or try one of the samples, which have sliders, dropdowns and charts:
 
 ```sh
 git clone https://github.com/muneeb-devp/reverb
@@ -61,7 +72,7 @@ Here's a complete notebook:
 
 ```csharp
 #!/usr/bin/env dotnet
-#:package Reverb.Runtime@0.1.0
+#:package Reverb.Runtime@0.2.0
 // reverb-notebook v1
 
 // %% setup
@@ -193,7 +204,7 @@ var input = args.Length > 0 ? args[0] : "default.csv";                    // rev
 await Task.Delay(5000, Notebook.CancellationToken);                       // stops when you press Interrupt
 ```
 
-## The editor
+## The browser editor
 
 `reverb edit notebook.cs` starts a local server and opens the notebook in your browser. Saving writes the `.cs` file, and nothing else.
 
@@ -219,7 +230,7 @@ Some other things worth knowing:
 
 ## VS Code
 
-The `vscode` folder has an extension that opens Reverb notebooks as native VS Code notebooks, with VS Code's own cells, run buttons and outputs and Reverb's reactive engine underneath. It needs the Reverb tool installed (the extension offers to install it) and talks to it through `reverb serve --stdio`, so it opens no network port.
+If you live in VS Code, install [Reverb Notebooks](https://marketplace.visualstudio.com/items?itemName=MuneebMughal.reverb-notebooks) and your `.cs` notebooks open as native VS Code notebooks: VS Code's own cells, run buttons and outputs, with Reverb's reactive engine underneath. It needs the `reverb` tool (version 0.2.0 or later) and offers to install it for you. The extension talks to the tool through `reverb serve --stdio`, so it opens no network port. Its source is in the [`vscode`](vscode) folder.
 
 To open a notebook, right-click the `.cs` file and choose Open With, then Reverb Notebook, or click "Open as Reverb notebook" at the top of the file. What you get:
 
@@ -281,6 +292,23 @@ Reverb works out what each cell reads and writes from Roslyn's semantic model. F
 The C# compiler covers the rest. Top-level variables can't be declared twice or used before they're declared, so the order of cells in the file is always an order they can run in. One thing Reverb can't see is state you keep in static fields and singletons, which survives between runs. If something looks off, restart the kernel.
 
 To check the whole thing actually holds, a fuzzer builds random notebooks, makes random edits, and compares the result with a fresh run after every step. CI runs 500 of those sequences on every push.
+
+## Common questions
+
+**A cell didn't re-run after I called `list.Add(...)` on a list from another cell.**
+Reverb re-runs a cell when a variable it reads is assigned again. Changing an object in place isn't something it can see, so it warns (RVB005) instead. Prefer records, `with` and LINQ, which produce new values, or run the reading cell yourself.
+
+**Where does a cell's output go when I save?**
+Nowhere. The file only has your code, which is why diffs stay small. Outputs live in the editor. To share them, `reverb export notebook.cs --html` writes a single page that works offline.
+
+**Why was the first run with a new package slow?**
+Reverb builds a kernel that includes the package, which takes a few seconds. After that the build is cached in `~/.reverb/kernels`.
+
+**Something behaves strangely after I changed a static field or a singleton.**
+That state survives between runs and Reverb can't see it. Restart the kernel (the toolbar in the browser editor, "Reverb: Restart Kernel" in VS Code).
+
+**Can I edit a notebook in another editor, or let a coding agent edit it?**
+Yes. It's a plain text file, and both the browser editor and the VS Code extension reload it when it changes on disk.
 
 ## How it compares
 
