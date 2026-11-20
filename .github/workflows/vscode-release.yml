@@ -1,7 +1,7 @@
 name: vscode-release
 
 # Push a tag like vscode-v0.1.0 to publish the VS Code extension to the Visual Studio Marketplace
-# and Open VSX and attach the .vsix to a GitHub release. The tag's version must match
+# (trusted publishing, no token) and Open VSX (token) and attach the .vsix to a GitHub release. The tag's version must match
 # vscode/package.json. Running it by hand builds and packages the extension without publishing.
 on:
   push:
@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write  # create the GitHub release
+  id-token: write  # lets the job prove to the Marketplace which workflow it is (trusted publishing)
 
 jobs:
   release:
@@ -91,16 +92,22 @@ jobs:
       - name: Publish to the Visual Studio Marketplace
         if: github.event_name == 'push'
         env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: npx vsce publish -p "$VSCE_PAT" --packagePath "reverb-notebooks-$VERSION.vsix"
+        # No token: --oidc exchanges this run's GitHub identity for a 15-minute Marketplace credential.
+        # It needs the trusted publishing policy described in vscode/PUBLISHING.md.
+        run: npx vsce publish --oidc --packagePath "reverb-notebooks-$VERSION.vsix"
 
       - name: Publish to Open VSX
         if: github.event_name == 'push'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
           VERSION: ${{ steps.version.outputs.version }}
-        run: npx ovsx publish "reverb-notebooks-$VERSION.vsix" -p "$OVSX_PAT"
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::warning::OVSX_PAT isn't set, so the extension wasn't published to Open VSX. See vscode/PUBLISHING.md."
+            exit 0
+          fi
+          npx ovsx publish "reverb-notebooks-$VERSION.vsix" -p "$OVSX_PAT"
 
       - name: Create the GitHub release
         if: github.event_name == 'push'
