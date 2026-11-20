@@ -1,8 +1,8 @@
 {
   "name": "reverb-notebooks",
-  "displayName": "Reverb",
+  "displayName": "Reverb Notebooks",
   "description": "Reactive C# notebooks in VS Code.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "MuneebMughal",
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/muneeb-devp/reverb.git", "directory": "vscode" },
