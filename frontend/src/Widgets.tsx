@@ -58,6 +58,8 @@ export function WidgetView({ spec }: { spec: WidgetSpec }) {
       return <DropdownView {...props} />;
     case "text":
       return <TextView {...props} />;
+    case "textarea":
+      return <TextAreaView {...props} />;
     case "checkbox":
       return <CheckboxView {...props} />;
     case "number":
@@ -142,6 +144,33 @@ function TextView({ spec, live, emit }: ControlProps) {
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") emit(text);
+        }}
+      />
+    </label>
+  );
+}
+
+function TextAreaView({ spec, live, emit }: ControlProps) {
+  const [text, setText] = useLocalValue(String(spec.value ?? ""));
+  const later = useDebounced(emit, 400);
+  return (
+    <label className="widget widget-textarea" data-widget-id={spec.id}>
+      <span className="widget-label">{spec.label}</span>
+      <textarea
+        rows={spec.rows ?? 4}
+        value={text}
+        disabled={!live}
+        aria-label={spec.label}
+        spellCheck={false}
+        onChange={(e) => {
+          setText(e.target.value);
+          later(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            emit(text);
+          }
         }}
       />
     </label>

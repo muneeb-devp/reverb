@@ -281,7 +281,7 @@ pre.stream.stderr { color: var(--error); }
 .widget-label { color: var(--text-muted); }
 .widget input[type="range"] { flex: 1; max-width: 360px; accent-color: var(--accent); }
 .widget-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; min-width: 4ch; }
-.widget select, .widget input[type="text"], .widget input[type="number"] {
+.widget select, .widget input[type="text"], .widget input[type="number"], .widget textarea {
   font: inherit;
   color: var(--text);
   background: var(--surface);
@@ -291,7 +291,9 @@ pre.stream.stderr { color: var(--error); }
 }
 .widget input[type="text"] { min-width: 220px; }
 .widget input[type="number"] { width: 110px; }
-.widget input:focus, .widget select:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+.widget-textarea { align-items: flex-start; }
+.widget textarea { font-family: var(--font-mono); flex: 1; min-width: 220px; max-width: 560px; resize: vertical; }
+.widget input:focus, .widget select:focus, .widget textarea:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
 .widget.invalid input { border-color: var(--error); }
 .widget-hint { font-size: 12px; color: var(--error); }
 .widget-checkbox { cursor: pointer; }

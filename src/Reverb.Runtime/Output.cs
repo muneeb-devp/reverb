@@ -154,6 +154,9 @@ public static class Formatters
                 w.WriteNumber("max", s.Max);
                 w.WriteNumber("step", s.Step);
                 break;
+            case TextArea t:
+                w.WriteNumber("rows", t.Rows);
+                break;
             case IDropdown d:
                 w.WriteStartArray("options");
                 foreach (var o in d.OptionTexts) w.WriteStringValue(o);
