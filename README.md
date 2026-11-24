@@ -1,6 +1,6 @@
 <h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-light.svg">
     <img alt="Reverb" src="assets/logo-light.svg" width="300">
   </picture>
 </h1>
