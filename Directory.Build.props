@@ -13,9 +13,9 @@
     <IsPackable>false</IsPackable>
 
     <!-- Pinned to the compiler that ships with the SDK we support (10.0.302 ships Roslyn 5.6.0). -->
-    <RoslynVersion>5.6.0</RoslynVersion>
-    <XunitVersion>3.2.2</XunitVersion>
-    <XunitRunnerVersion>3.1.5</XunitRunnerVersion>
-    <TestSdkVersion>18.11.0</TestSdkVersion>
+    <RoslynVersion>5.12.0</RoslynVersion>
+    <XunitVersion>4.0.3</XunitVersion>
+    <XunitRunnerVersion>4.0.1</XunitRunnerVersion>
+    <TestSdkVersion>18.12.0</TestSdkVersion>
   </PropertyGroup>
 </Project>
