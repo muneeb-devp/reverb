@@ -20,6 +20,8 @@ public sealed class NotebookAnalysis
     public SerializedNotebook Layout { get; }
     public SourceText Text { get; }
     public SyntaxTree Tree { get; }
+
+    /// <summary>The notebook compilation, with the files the source generators added.</summary>
     public CSharpCompilation Compilation { get; }
     public SemanticModel Model { get; }
     public NotebookCompilationOptions Options { get; }
@@ -33,15 +35,25 @@ public sealed class NotebookAnalysis
 
     public const string FilePath = "notebook.cs";
 
+    /// <summary>The compilation before generators ran: what an edit replaces the notebook's tree in.</summary>
+    readonly CSharpCompilation sourceCompilation;
+
+    /// <summary>Kept across edits, so generators only redo work for input that changed.</summary>
+    readonly GeneratorDriver? generatorDriver;
+
+    readonly ImmutableArray<Diagnostic> generatorDiagnostics;
+
     NotebookAnalysis(NotebookDocument doc, SerializedNotebook layout, SourceText text, SyntaxTree tree,
-        CSharpCompilation compilation, NotebookCompilationOptions options, ReferenceSet references)
+        CSharpCompilation compilation, NotebookCompilationOptions options, ReferenceSet references, GeneratorDriver? driver)
     {
         Document = doc;
         Layout = layout;
         Text = text;
         Tree = tree;
-        Compilation = compilation;
-        Model = compilation.GetSemanticModel(tree);
+        sourceCompilation = compilation;
+        Compilation = SourceGenerators.Run(references.Generators, compilation, options.ParseOptions, ref driver, out generatorDiagnostics);
+        generatorDriver = driver;
+        Model = Compilation.GetSemanticModel(tree);
         Options = options;
         References = references;
         Map = new CellMap(layout, text);
@@ -59,7 +71,7 @@ public sealed class NotebookAnalysis
         var usings = CSharpSyntaxTree.ParseText(options.GlobalUsingsSource, options.ParseOptions, "GlobalUsings.g.cs", Encoding.UTF8);
         var compilation = CSharpCompilation.Create("Notebook", [usings, tree], references.References,
             options.CompilationOptions(OutputKind.ConsoleApplication));
-        return new NotebookAnalysis(doc, layout, text, tree, compilation, options, references);
+        return new NotebookAnalysis(doc, layout, text, tree, compilation, options, references, driver: null);
     }
 
     /// <summary>
@@ -73,8 +85,8 @@ public sealed class NotebookAnalysis
         var layout = NotebookWriter.Write(doc);
         var text = SourceText.From(layout.Text, Encoding.UTF8);
         var tree = Tree.WithChangedText(text);
-        var compilation = Compilation.ReplaceSyntaxTree(Tree, tree);
-        return new NotebookAnalysis(doc, layout, text, tree, compilation, options, References);
+        var compilation = sourceCompilation.ReplaceSyntaxTree(Tree, tree);
+        return new NotebookAnalysis(doc, layout, text, tree, compilation, options, References, generatorDriver);
     }
 
     static bool SameCompilerSettings(NotebookCompilationOptions a, NotebookCompilationOptions b) =>
@@ -120,6 +132,8 @@ public sealed class NotebookAnalysis
 
             foreach (var problem in a.Options.Problems)
                 notebookDiagnostics.Add(new NotebookDiagnostic("RVB100", DiagnosticSeverity.Error, problem, null, CellRange.Start));
+            foreach (var problem in a.References.GeneratorProblems)
+                notebookDiagnostics.Add(new NotebookDiagnostic(RuleIds.GeneratorNotLoaded, DiagnosticSeverity.Warning, problem, null, CellRange.Start));
             AddCompilerDiagnostics();
             CheckPlacement(root);
 
@@ -591,7 +605,7 @@ public sealed class NotebookAnalysis
 
         void AddCompilerDiagnostics()
         {
-            foreach (var d in a.Compilation.GetDiagnostics())
+            foreach (var d in a.Compilation.GetDiagnostics().Concat(a.generatorDiagnostics))
             {
                 if (d.Severity < DiagnosticSeverity.Warning || d.IsSuppressed) continue;
                 var message = d.GetMessage(System.Globalization.CultureInfo.InvariantCulture);

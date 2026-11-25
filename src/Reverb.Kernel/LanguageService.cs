@@ -71,7 +71,8 @@ public sealed class LanguageService : IDisposable
             var project = ProjectInfo.Create(projectId, VersionStamp.Create(), "Notebook", "Notebook", LanguageNames.CSharp,
                 compilationOptions: options.CompilationOptions(OutputKind.ConsoleApplication),
                 parseOptions: options.ParseOptions,
-                metadataReferences: references.References);
+                metadataReferences: references.References,
+                analyzerReferences: references.Analyzers);
             notebookId = DocumentId.CreateNewId(projectId);
             typesId = DocumentId.CreateNewId(projectId);
             // Nothing is ever applied to the workspace, so its current solution is empty to start from.

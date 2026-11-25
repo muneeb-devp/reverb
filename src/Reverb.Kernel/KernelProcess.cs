@@ -15,6 +15,9 @@ public static class KernelProcess
     /// </summary>
     public const string ReferencesFile = "reverb-references.txt";
 
+    /// <summary>Written next to it too: the analyzer assemblies the build used, whose source generators cells run.</summary>
+    public const string AnalyzersFile = "reverb-analyzers.txt";
+
     public static Task<int> RunAsync()
     {
         KernelTrace.Enable();
@@ -32,11 +35,11 @@ public static class KernelProcess
         : new FileStream(new SafeFileHandle(1, ownsHandle: false), FileAccess.Write, bufferSize: 0);
 
     /// <summary>The package assemblies this kernel was built with. Empty for the plain kernel.</summary>
-    public static IReadOnlyList<string> PackageReferences()
-    {
-        var file = Path.Combine(AppContext.BaseDirectory, ReferencesFile);
-        return File.Exists(file)
-            ? [.. File.ReadAllLines(file).Select(l => l.Trim()).Where(l => l.Length > 0)]
-            : [];
-    }
+    public static IReadOnlyList<string> PackageReferences() => ReadPaths(Path.Combine(AppContext.BaseDirectory, ReferencesFile));
+
+    /// <summary>The analyzer assemblies this kernel was built with. Empty for the plain kernel.</summary>
+    public static IReadOnlyList<string> PackageAnalyzers() => ReadPaths(Path.Combine(AppContext.BaseDirectory, AnalyzersFile));
+
+    internal static IReadOnlyList<string> ReadPaths(string file) =>
+        File.Exists(file) ? [.. File.ReadAllLines(file).Select(l => l.Trim()).Where(l => l.Length > 0)] : [];
 }

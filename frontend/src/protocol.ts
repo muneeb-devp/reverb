@@ -143,7 +143,7 @@ export const MIME = {
   vegaLite: "application/vnd.vegalite.v5+json",
 } as const;
 
-export type WidgetKind = "slider" | "dropdown" | "text" | "checkbox" | "number" | "button";
+export type WidgetKind = "slider" | "dropdown" | "text" | "textarea" | "checkbox" | "number" | "button";
 
 /** A widget as the kernel describes it (application/vnd.reverb.widget+json). */
 export interface WidgetSpec {
@@ -158,4 +158,6 @@ export interface WidgetSpec {
   /** Dropdowns: option texts and the selected index. */
   options?: string[];
   index?: number;
+  /** Text areas: how many lines show before it scrolls. */
+  rows?: number;
 }

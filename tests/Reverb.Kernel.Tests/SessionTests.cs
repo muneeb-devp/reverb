@@ -369,6 +369,20 @@ public class SessionTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Text_area_takes_multiline_text_and_splits_it_into_lines()
+    {
+        await using var s = await Open([
+            "var ids = Ui.TextArea(\"Ids\", value: \"1\", rows: 6);",
+            "var joined = string.Join(\",\", ids.Lines);",
+        ]);
+        Assert.Equal("1", s.Store.Get<string>("joined"));
+
+        Assert.True(await s.SetWidgetAsync("c1:0", "192320\r\n  1024397 \n\n42\n"));
+        Assert.Equal("192320,1024397,42", s.Store.Get<string>("joined"));
+        Assert.False(await s.SetWidgetAsync("c1:0", 42)); // not text
+    }
+
+    [Fact]
     public async Task Widget_value_survives_its_cell_rerunning_while_it_still_fits()
     {
         string[] cells = ["var size = Ui.Slider(\"Size\", min: 0, max: 10, value: 3);", "var doubled = size.Value * 2;"];
@@ -422,5 +436,34 @@ public class SessionTests(ITestOutputHelper output)
             if (DateTime.UtcNow > deadline) throw new TimeoutException();
             await Task.Delay(10);
         }
+    }
+}
+
+public class SourceGeneratorSessionTests
+{
+    const string Setup = "using Reverb;\nusing System.Text.Json;\nusing System.Text.Json.Serialization;\nusing System.Text.RegularExpressions;";
+
+    const string Types = """
+        record Order(int Id);
+
+        [JsonSerializable(typeof(Order))]
+        partial class AppJson : JsonSerializerContext;
+
+        static partial class Patterns
+        {
+            [GeneratedRegex(@"\d+")]
+            public static partial Regex Digits();
+        }
+        """;
+
+    [Fact]
+    public async Task Cells_use_what_the_generators_added_to_the_types_cell()
+    {
+        await using var s = new KernelSession();
+        await s.OpenAsync(NotebookDocument.Parse(NotebookText.Build(
+            ["var json = JsonSerializer.Serialize(new Order(1), AppJson.Default.Order);", "var masked = Patterns.Digits().Replace(\"a1b22\", \"#\");"],
+            Types, Setup)));
+        Assert.Equal("{\"Id\":1}", s.Store.Get<string>("json"));
+        Assert.Equal("a#b#", s.Store.Get<string>("masked"));
     }
 }

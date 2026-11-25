@@ -1,0 +1,94 @@
+name: github-packages
+
+# Push a tag like v0.1.2 (or v0.1.2-dev.1) on a commit of the dev branch to publish
+# Reverb.Notebooks and Reverb.Runtime to this repository's GitHub Packages NuGet feed.
+# Tags on commits that aren't on dev are skipped.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  packages: write  # push to GitHub Packages with the workflow's own token
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the whole history, to tell whether the tagged commit is on dev
+
+      - name: Check the tag is on dev
+        id: branch
+        shell: bash
+        run: |
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/dev; then
+            echo "on-dev=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "on-dev=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$GITHUB_REF_NAME isn't on the dev branch, so nothing is published to GitHub Packages."
+          fi
+
+      - uses: actions/setup-dotnet@v4
+        if: steps.branch.outputs.on-dev == 'true'
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        if: steps.branch.outputs.on-dev == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Work out the version
+        if: steps.branch.outputs.on-dev == 'true'
+        id: version
+        shell: bash
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          if ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$v' isn't a version like 1.2.3 or 1.2.3-beta.1. Tags should look like v1.2.3."
+            exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version: $v"
+
+      - name: Build and test
+        if: steps.branch.outputs.on-dev == 'true'
+        run: |
+          dotnet build Reverb.slnx -c Release
+          dotnet test Reverb.slnx -c Release --no-build -m:1
+
+      # GitHub Packages links a package to the repository named in its metadata, which has to be
+      # this one for the workflow token to push it.
+      - name: Pack
+        if: steps.branch.outputs.on-dev == 'true'
+        run: |
+          for project in src/Reverb.Runtime src/Reverb.Cli; do
+            dotnet pack "$project" -c Release -o packages \
+              -p:Version=${{ steps.version.outputs.version }} \
+              -p:RepositoryUrl=${{ github.server_url }}/${{ github.repository }}
+          done
+
+      - name: Check the packages work once installed
+        if: steps.branch.outputs.on-dev == 'true'
+        run: eng/smoke-test.sh packages ${{ steps.version.outputs.version }}
+
+      - name: Publish to GitHub Packages
+        if: steps.branch.outputs.on-dev == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # The runtime goes first: a tool that writes '#:package Reverb.Runtime@x' must never be
+          # live before x is. GitHub Packages doesn't take .snupkg symbol packages.
+          for id in Reverb.Runtime Reverb.Notebooks; do
+            dotnet nuget push "packages/$id.${{ steps.version.outputs.version }}.nupkg" \
+              --api-key "$GITHUB_TOKEN" \
+              --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+              --skip-duplicate --no-symbols
+          done

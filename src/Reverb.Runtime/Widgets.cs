@@ -16,7 +16,7 @@ public abstract class Widget
     /// <summary>Set by a live host so user changes can find this widget. Null under <c>dotnet run</c>.</summary>
     public string? Id { get; internal set; }
 
-    /// <summary>"slider", "dropdown", "text", "checkbox", "number" or "button".</summary>
+    /// <summary>"slider", "dropdown", "text", "textarea", "checkbox", "number" or "button".</summary>
     public abstract string Kind { get; }
 
     public abstract object? BoxedValue { get; }
@@ -126,6 +126,33 @@ public sealed class TextBox : Widget
     }
 }
 
+public sealed class TextArea : Widget
+{
+    internal TextArea(string label, string value, int rows) : base(label)
+    {
+        if (rows < 1) throw new ArgumentException($"Text area '{label}': rows must be at least 1.");
+        Value = value;
+        Rows = rows;
+    }
+
+    /// <summary>How many lines of text the box shows before it scrolls.</summary>
+    public int Rows { get; }
+    public string Value { get; private set; }
+    public override string Kind => "textarea";
+    public override object? BoxedValue => Value;
+
+    /// <summary>The text's lines, trimmed, without the blank ones: one item per line someone typed or pasted.</summary>
+    public IReadOnlyList<string> Lines =>
+        Value.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    public override bool TrySetValue(object? value)
+    {
+        if (value is not string s) return false;
+        Value = s.ReplaceLineEndings("\n");
+        return true;
+    }
+}
+
 public sealed class Checkbox : Widget
 {
     internal Checkbox(string label, bool value) : base(label) => Value = value;
@@ -221,6 +248,9 @@ public static class Ui
         Register(new Dropdown<T>(label, options.ToArray(), value));
 
     public static TextBox Text(string label, string value = "") => Register(new TextBox(label, value));
+
+    public static TextArea TextArea(string label, string value = "", int rows = 4) =>
+        Register(new TextArea(label, value.ReplaceLineEndings("\n"), rows));
 
     public static Checkbox Checkbox(string label, bool value = false) => Register(new Checkbox(label, value));
 

@@ -87,7 +87,7 @@ public sealed class KernelSession : IAsyncDisposable
     }
 
     static readonly Lazy<ReferenceSet> DefaultReferences = new(() =>
-        ReferenceSet.FromCurrentProcess(typeof(Ui).Assembly).With(KernelProcess.PackageReferences()));
+        ReferenceSet.FromCurrentProcess(typeof(Ui).Assembly).With(KernelProcess.PackageReferences()).WithGenerators(KernelProcess.PackageAnalyzers()));
 
     sealed class NoEvents : IKernelEvents;
 

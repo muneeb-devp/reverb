@@ -2,22 +2,38 @@ using System.Collections.Immutable;
 using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Diagnostics;
 using Reverb.Format;
 
 namespace Reverb.Analysis;
 
-/// <summary>The metadata references a notebook compiles against.</summary>
+/// <summary>The metadata references a notebook compiles against, and the source generators it runs.</summary>
 public sealed class ReferenceSet
 {
     // The same file can be listed twice (the test host's trusted platform assemblies list
     // System.Private.CoreLib twice, for one). A compilation shrugs that off; a workspace project throws.
-    ReferenceSet(ImmutableArray<MetadataReference> references) => References = [.. references.Distinct()];
+    ReferenceSet(ImmutableArray<MetadataReference> references, ImmutableArray<AnalyzerFileReference> analyzers, ImmutableArray<string> problems)
+    {
+        References = [.. references.Distinct()];
+        Analyzers = analyzers;
+        GeneratorProblems = problems;
+        Generators = [.. analyzers.SelectMany(a => a.GetGenerators(LanguageNames.CSharp))];
+    }
 
     public ImmutableArray<MetadataReference> References { get; }
 
+    /// <summary>Assemblies with C# source generators, at most one per file name.</summary>
+    public ImmutableArray<AnalyzerFileReference> Analyzers { get; }
+
+    public ImmutableArray<ISourceGenerator> Generators { get; }
+
+    /// <summary>Generator assemblies that couldn't be loaded.</summary>
+    public ImmutableArray<string> GeneratorProblems { get; }
+
     /// <summary>
-    /// The shared framework the current process runs on, plus the given assemblies (normally
-    /// Reverb.Runtime and package assemblies). The kernel uses its own loaded assemblies the same way.
+    /// The shared framework the current process runs on and its source generators, plus the given
+    /// assemblies (normally Reverb.Runtime and package assemblies). The kernel uses its own loaded
+    /// assemblies the same way.
     /// </summary>
     public static ReferenceSet FromCurrentProcess(params Assembly[] extra)
     {
@@ -27,15 +43,30 @@ public sealed class ReferenceSet
             .Where(p => string.Equals(Path.GetDirectoryName(p), frameworkDir, StringComparison.OrdinalIgnoreCase))
             .Select(p => (MetadataReference)CachedReference(p));
         var extras = extra.Select(a => (MetadataReference)CachedReference(a.Location));
-        return new ReferenceSet([.. framework.Concat(extras)]);
+        return new ReferenceSet([.. framework.Concat(extras)], [], []).WithGenerators(SourceGenerators.FrameworkGeneratorPaths());
     }
 
     public static ReferenceSet FromFiles(IEnumerable<string> paths) =>
-        new([.. paths.Select(p => (MetadataReference)CachedReference(p))]);
+        new([.. paths.Select(p => (MetadataReference)CachedReference(p))], [], []);
 
     /// <summary>This set plus the given files (package assemblies, say).</summary>
     public ReferenceSet With(IEnumerable<string> paths) =>
-        new(References.AddRange(paths.Select(p => (MetadataReference)CachedReference(p))));
+        new(References.AddRange(paths.Select(p => (MetadataReference)CachedReference(p))), Analyzers, GeneratorProblems);
+
+    /// <summary>
+    /// This set plus the source generators in the given analyzer assemblies. Assemblies without
+    /// generators are skipped. One with the same file name as a generator already in the set
+    /// replaces it, so a package kernel's framework generators don't run twice.
+    /// </summary>
+    public ReferenceSet WithGenerators(IEnumerable<string> analyzerPaths)
+    {
+        var loaded = analyzerPaths.Select(SourceGenerators.Load).ToList();
+        var added = loaded.Select(l => l.Reference).OfType<AnalyzerFileReference>().ToList();
+        var names = added.Select(a => Path.GetFileName(a.FullPath)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return new ReferenceSet(References,
+            [.. Analyzers.Where(a => !names.Contains(Path.GetFileName(a.FullPath))), .. added.DistinctBy(a => Path.GetFileName(a.FullPath), StringComparer.OrdinalIgnoreCase)],
+            [.. GeneratorProblems, .. loaded.Select(l => l.Problem).OfType<string>()]);
+    }
 
     // Sharing PortableExecutableReference instances lets Roslyn reuse metadata across compilations.
     static readonly System.Collections.Concurrent.ConcurrentDictionary<string, PortableExecutableReference> cache = new(StringComparer.OrdinalIgnoreCase);

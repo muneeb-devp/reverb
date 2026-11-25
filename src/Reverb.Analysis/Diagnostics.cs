@@ -31,4 +31,5 @@ public static class RuleIds
     public const string MutatesOtherCellsVariable = "RVB005";
     public const string LocalFunctionFromLaterCell = "RVB006";
     public const string ValueCannotCrossCells = "RVB007";
+    public const string GeneratorNotLoaded = "RVB106";
 }

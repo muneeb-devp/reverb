@@ -10,7 +10,7 @@ namespace Reverb.Kernel;
 public sealed class KernelBuildException(string message) : Exception(message);
 
 /// <summary>A kernel built for one set of packages, ready to start.</summary>
-public sealed record KernelBuild(string Directory, string EntryAssembly, IReadOnlyList<string> References, bool Reused);
+public sealed record KernelBuild(string Directory, string EntryAssembly, IReadOnlyList<string> References, IReadOnlyList<string> Analyzers, bool Reused);
 
 public sealed record KernelBuildRequest
 {
@@ -36,7 +36,7 @@ public sealed record KernelBuildRequest
 public static class KernelBuilder
 {
     /// <summary>Bump when the generated project changes, so old cached kernels aren't reused.</summary>
-    const int LayoutVersion = 1;
+    const int LayoutVersion = 2;
 
     const string EntryName = "reverb-kernel";
 
@@ -90,6 +90,7 @@ public static class KernelBuilder
         await RunDotnetAsync(request.DotnetPath, src, ["build", project, "--no-restore", "-c", "Release", "-o", bin], "Couldn't build a kernel with the notebook's packages", cancellationToken);
 
         File.Move(Path.Combine(src, KernelProcess.ReferencesFile), Path.Combine(bin, KernelProcess.ReferencesFile), overwrite: true);
+        File.Move(Path.Combine(src, KernelProcess.AnalyzersFile), Path.Combine(bin, KernelProcess.AnalyzersFile), overwrite: true);
         File.WriteAllText(Path.Combine(dir, "ready"), string.Join("\n", request.Packages) + "\n");
         return (TryLoad(dir) ?? throw new KernelBuildException($"The kernel built in {dir} is incomplete. Delete that folder and try again.")) with { Reused = false };
     }
@@ -98,11 +99,13 @@ public static class KernelBuilder
     {
         var entry = Path.Combine(dir, "bin", EntryName + ".dll");
         var references = Path.Combine(dir, "bin", KernelProcess.ReferencesFile);
-        if (!File.Exists(Path.Combine(dir, "ready")) || !File.Exists(entry) || !File.Exists(references)) return null;
-        var paths = File.ReadAllLines(references).Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
-        // Compile references point into the NuGet cache. If that was cleared, build again.
-        if (!paths.All(File.Exists)) return null;
-        return new KernelBuild(dir, entry, paths, Reused: true);
+        var analyzers = Path.Combine(dir, "bin", KernelProcess.AnalyzersFile);
+        if (!File.Exists(Path.Combine(dir, "ready")) || !File.Exists(entry) || !File.Exists(references) || !File.Exists(analyzers)) return null;
+        var paths = KernelProcess.ReadPaths(references);
+        var analyzerPaths = KernelProcess.ReadPaths(analyzers);
+        // Compile references and analyzers point into the NuGet cache. If that was cleared, build again.
+        if (!paths.All(File.Exists) || !analyzerPaths.All(File.Exists)) return null;
+        return new KernelBuild(dir, entry, paths, analyzerPaths, Reused: true);
     }
 
     /// <summary>Reverb.Kernel.dll and every assembly it needs from the tool folder.</summary>
@@ -191,6 +194,10 @@ public static class KernelBuilder
                     Condition="'%(ReferencePathWithRefAssemblies.NuGetPackageId)' != '' and '%(ReferencePathWithRefAssemblies.FrameworkReferenceName)' == ''" />
                 </ItemGroup>
                 <WriteLinesToFile File="$(MSBuildProjectDirectory)/{KernelProcess.ReferencesFile}" Lines="@(_ReverbPackageReference)" Overwrite="true" />
+              </Target>
+              <!-- The analyzers the compiler would load: the framework's and the packages' source generators are among them. -->
+              <Target Name="ReverbListAnalyzers" BeforeTargets="CoreCompile">
+                <WriteLinesToFile File="$(MSBuildProjectDirectory)/{KernelProcess.AnalyzersFile}" Lines="@(Analyzer)" Overwrite="true" />
               </Target>
             </Project>
 

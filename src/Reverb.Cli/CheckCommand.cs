@@ -45,7 +45,7 @@ static class CheckCommand
         {
             // Package types have to be known for the diagnostics to be right.
             if (await PackageKernels.EnsureAsync(path, loaded.Document.Preamble.Directives) is { } build)
-                references = references.With(build.References);
+                references = references.With(build.References).WithGenerators(build.Analyzers);
         }
         catch (KernelBuildException e)
         {

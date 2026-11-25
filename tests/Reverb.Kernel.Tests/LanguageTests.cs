@@ -40,6 +40,17 @@ public class LanguageTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public async Task Members_added_by_source_generators_complete()
+    {
+        using var service = new LanguageService(References);
+        var (doc, cell, offset) = At(["var info = AppJson.|"],
+            types: "record Order(int Id);\n[JsonSerializable(typeof(Order))]\npartial class AppJson : JsonSerializerContext;",
+            setup: "using Reverb;\nusing System.Text.Json.Serialization;");
+        var result = await service.CompleteAsync(doc, cell, offset);
+        Assert.Contains(result.Items, i => i.Label == "Default" && i.Kind == "property");
+    }
+
+    [Fact]
     public async Task Member_completions_after_a_dot()
     {
         using var service = new LanguageService(References);

@@ -44,16 +44,20 @@ public sealed class CellCompiler : IDisposable
 
     readonly Dictionary<string, Compiled> cells = new(StringComparer.Ordinal);
     readonly ImmutableArray<MetadataReference> references;
+    readonly ImmutableArray<ISourceGenerator> generators;
     CSharpCompilation? baseCompilation;
     string baseKey = "";
 
     CellLoadContext? typesContext;
     Assembly? typesAssembly;
     MetadataReference? typesReference;
+    GeneratorDriver? typesGenerators;
+    string typesGeneratorsKey = "";
 
     public CellCompiler(ReferenceSet references)
     {
         this.references = references.References.Add(MetadataReference.CreateFromFile(typeof(CellContext).Assembly.Location));
+        generators = references.Generators;
     }
 
     /// <summary>Changes whenever the types cell is recompiled. Part of every cell's cache key.</summary>
@@ -79,7 +83,8 @@ public sealed class CellCompiler : IDisposable
 
         lock (compileGate)
         {
-            var (pe, pdb, errors) = Emit(analysis, CellCodeGenerator.TypesAssemblyName, source, references);
+            // Generators only run here: what they extend (partial classes, partial methods) can only be declared in the types cell.
+            var (pe, pdb, errors) = Emit(analysis, CellCodeGenerator.TypesAssemblyName, source, references, runGenerators: true);
             if (pe is null)
             {
                 failure = new CompileFailure("types", errors);
@@ -157,7 +162,8 @@ public sealed class CellCompiler : IDisposable
         UnloadTypes();
     }
 
-    (byte[]? Pe, byte[]? Pdb, ImmutableArray<Diagnostic> Errors) Emit(NotebookAnalysis analysis, string assemblyName, string source, ImmutableArray<MetadataReference> refs)
+    (byte[]? Pe, byte[]? Pdb, ImmutableArray<Diagnostic> Errors) Emit(NotebookAnalysis analysis, string assemblyName, string source,
+        ImmutableArray<MetadataReference> refs, bool runGenerators = false)
     {
         // Cells share a base compilation (global usings + references) so Roslyn reuses its
         // reference binding. A new base is made when the references or options change.
@@ -174,6 +180,12 @@ public sealed class CellCompiler : IDisposable
         }
         var compilation = baseCompilation.AddSyntaxTrees(
             CSharpSyntaxTree.ParseText(source, options.ParseOptions, assemblyName + ".g.cs", Encoding.UTF8));
+        if (runGenerators)
+        {
+            if (typesGeneratorsKey != OptionsKey(analysis)) typesGenerators = null;
+            typesGeneratorsKey = OptionsKey(analysis);
+            compilation = SourceGenerators.Run(generators, compilation, options.ParseOptions, ref typesGenerators, out _);
+        }
         using var pe = new MemoryStream();
         using var pdb = new MemoryStream();
         var result = compilation.Emit(pe, pdb, options: new EmitOptions(debugInformationFormat: DebugInformationFormat.PortablePdb));

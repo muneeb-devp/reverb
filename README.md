@@ -169,6 +169,7 @@ A widget is a variable. Any cell that reads `.Value` runs again when the widget 
 | `Ui.Slider("Size", min: 0, max: 100, value: 50, step: 5)` | `double` |
 | `Ui.Dropdown("Region", ["West", "East"], value: "East")` | the selected item (any type) |
 | `Ui.Text("Name", value: "Ada")` | `string` |
+| `Ui.TextArea("Ids", rows: 6)` | `string`; `.Lines` gives its trimmed, non-blank lines |
 | `Ui.Checkbox("Show totals", value: true)` | `bool` |
 | `Ui.Number("Years", 30, min: 1, max: 40)` | the number type you passed (`int`, `decimal`, ...) |
 | `Ui.Button("Refresh")` | how many times it's been clicked |
